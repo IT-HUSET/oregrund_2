@@ -45,7 +45,12 @@ const COLUMNS: Column[] = [
 
 export function BoardsPanel({ boards, error = false }: BoardsPanelProps) {
   if (error) return <p className="board-list__message">The board list could not be built from this model.</p>
-  if (!boards) return <p className="board-list__message">Reading boards…</p>
+  if (!boards)
+    return (
+      <p className="board-list__message" role="status">
+        Reading boards…
+      </p>
+    )
   if (boards.length === 0) return <p className="board-list__message">No boards found in this model.</p>
   return <BoardList boards={boards} />
 }

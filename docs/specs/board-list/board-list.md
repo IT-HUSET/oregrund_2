@@ -32,7 +32,7 @@
 
 ## Acceptance Scenarios
 
-- [ ] **S01 [OC02] [TI01] Board names are parsed into piece code, role, profile and grade**
+- [x] **S01 [OC02] [TI01] Board names are parsed into piece code, role, profile and grade**
   - **Given** the IFC names `FD5 Opening header beam 45x182 C24`, `36 Siding board 22x145_sta_Z C16`, `100 Sill plate 45x220_S C24`, `155 Stud GL 90x220 GL`, `185  GL 42x270 GL`, `92  PAR 9.762523x95 C14` and `210 Vertical batten 28x70 C24*`
   - **When** each name is parsed
   - **Then** they give, in order:
@@ -46,17 +46,17 @@
 
     Each profile label reads exactly as written in the name (`45x220_S`, `9.762523x95`).
 
-- [ ] **S02 [OC02] [TI02] Boards are extracted from a loaded IFC model with length and prefab element**
+- [x] **S02 [OC02] [TI02] Boards are extracted from a loaded IFC model with length and prefab element**
   - **Given** a hand-authored IFC4 fixture containing an `IFCBEAM`, an `IFCCOLUMN` and an `IFCCOVERING`, each with a Tag and a `Length` quantity, aggregated board → `IFCBUILDINGELEMENTPART` → `IFCELEMENTASSEMBLY 'GOLV-999*'`, plus one `IFCBUILDINGELEMENTPROXY` and one `IFCPLATE`
   - **When** the model is loaded and its boards are requested
   - **Then** exactly the beam, column and covering are returned. Each has its Tag as OID, the correct kind (`framing` or `siding`), the raw Length in mm, and prefab element `GOLV-999*`. The proxy and plate are not returned.
 
-- [ ] **S03 [OC03] [TI03] The summary groups by profile + grade and its totals add up**
+- [x] **S03 [OC03] [TI03] The summary groups by profile + grade and its totals add up**
   - **Given** the boards 45x220 C24 (2,408 mm), 45x220 C24 (1,200 mm), 45x220_S C24 (3,000 mm) and 45x220 C16 (900 mm)
   - **When** the summary is built
   - **Then** there are three groups: `45x220 C24` (count 2, total 3,608 mm), `45x220_S C24` (1, 3,000 mm) and `45x220 C16` (1, 900 mm). The grand total is 4 boards and 7,508 mm.
 
-- [ ] **S04 [OC01,OC02,OC03] [TI04,TI05] The user browses, sorts and filters boards in the Boards tab**
+- [x] **S04 [OC01,OC02,OC03] [TI04,TI05] The user browses, sorts and filters boards in the Boards tab**
   - **Given** a model has loaded and the tab bar shows **3D model** (selected) and **Boards**
   - **When** the user selects **Boards**, clicks the **Length** column header twice, then clicks the summary group `45x220 C24`
   - **Then**:
@@ -65,22 +65,22 @@
     - After the group click, only `45x220 C24` boards remain, "filtered: 45x220 C24" is shown with a **Clear filter** button, and **Clear filter** restores all rows.
     - Lengths show as whole mm (254.99999… → `255`).
 
-- [ ] **S05 [OC01] [TI05] Switching tabs keeps the 3D view state, and a new file resets the board list**
+- [x] **S05 [OC01] [TI05] Switching tabs keeps the 3D view state, and a new file resets the board list**
   - **Given** a model is loaded and an element is selected in **3D model**
   - **When** the user switches to **Boards** and back, and then chooses a different file while **Boards** is selected
   - **Then** after switching back, the viewport is still mounted with the same model and selection (it was not recreated). After the new file loads, the Boards tab shows the new model's boards with no filter and the default sort.
 
-- [ ] **S06 [OC04] [TI01,TI02,TI04] Unreadable names and missing lengths are listed, flagged and counted**
+- [x] **S06 [OC04] [TI01,TI02,TI04] Unreadable names and missing lengths are listed, flagged and counted**
   - **Given** the boards include one named `Mystery piece` (no `WxH grade` part) and one board with no `Length` quantity
   - **When** the Boards tab is shown
   - **Then** both boards appear in the piece table with a visible "unparsed" / "no length" marker and empty cells for the missing data. The summary shows "2 boards could not be fully read" and has an **Unparsed** group containing `Mystery piece`. The board without a length counts toward its group's count but not its total length.
 
-- [ ] **S07 [OC04] [TI04,TI05] A board-extraction failure is contained in the Boards tab**
+- [x] **S07 [OC04] [TI04,TI05] A board-extraction failure is contained in the Boards tab**
   - **Given** a model whose 3D view loaded, but whose board extraction rejects with an error
   - **When** the user opens **Boards**
   - **Then** the tab shows "The board list could not be built from this model." and the error goes to `console.error`. Switching back to **3D model** shows the model, and it can still be picked.
 
-- [ ] **S08 [OC02] [TI04] A model without boards shows an empty state**
+- [x] **S08 [OC02] [TI04] A model without boards shows an empty state**
   - **Given** a loaded model whose board list is empty
   - **When** the user opens **Boards**
   - **Then** the tab shows "No boards found in this model." instead of an empty table.
@@ -88,11 +88,11 @@
 
 ## Structural Criteria
 
-- [ ] `npm run lint`, `npm run typecheck`, `npm run test:run` and `npm run build` all pass, and the existing `App.test.tsx` and `ifcLoader.test.ts` scenarios still pass.
-- [ ] Board parsing and grouping live in `src/domain/` and import nothing from `react`, `three`, `web-ifc` or DOM APIs.
-- [ ] No file-derived string is rendered through `dangerouslySetInnerHTML`. New fixtures are hand-authored and contain no personal names.
-- [ ] With `772_H811_new.ifc` in `npm run dev`: 1,060 boards (731 framing + 329 siding), 0 unparsed, and every board has a prefab element. Extraction runs once per loaded model (not on every tab switch), and opening the tab has no noticeable delay.
-- [ ] No new runtime dependency is added to `package.json`.
+- [x] `npm run lint`, `npm run typecheck`, `npm run test:run` and `npm run build` all pass, and the existing `App.test.tsx` and `ifcLoader.test.ts` scenarios still pass.
+- [x] Board parsing and grouping live in `src/domain/` and import nothing from `react`, `three`, `web-ifc` or DOM APIs.
+- [x] No file-derived string is rendered through `dangerouslySetInnerHTML`. New fixtures are hand-authored and contain no personal names.
+- [x] With `772_H811_new.ifc` in `npm run dev`: 1,060 boards (731 framing + 329 siding), 0 unparsed, and every board has a prefab element. Extraction runs once per loaded model (not on every tab switch), and opening the tab has no noticeable delay.
+- [x] No new runtime dependency is added to `package.json`.
 
 
 ## Scope & Boundaries
@@ -177,4 +177,15 @@ file   | node_modules/web-ifc/helpers/properties.d.ts#Properties      | getPrope
 
 > _Managed by exec-spec post-implementation – append-only. Tag semantics: see [`data-contract.md`](${CLAUDE_PLUGIN_ROOT}/references/data-contract.md) (FIS Mutability Contract, tag definitions). AUTO_MODE assumption-recording: see [`automation-mode.md`](${CLAUDE_PLUGIN_ROOT}/references/automation-mode.md). Spec authors: leave this section empty._
 
-_No observations recorded yet._
+### Run: 2026-09-18 13:22 UTC – observations
+
+#### NOTICED BUT NOT TOUCHING
+- src/domain/boards/board.ts:39 – Board lengths are taken as raw model length units (mm per spec); resolved project units are not applied, so an IFC in metres would show 0–6 mm lengths. Revisit if non-mm exports appear.
+- src/features/ifc-viewer/ifcLoader.ts (readBoards) – GetLineIDsWithType is called without includeInherited, so IFCBEAMSTANDARDCASE / IFCCOLUMNSTANDARDCASE are not boards. The sample has none; revisit for non-Vertex IFC4 exports.
+- src/App.test.tsx:31 and src/features/ifc-viewer/__fixtures__/beam.ifc – pre-existing test data reuses a GlobalId from the confidential sample (0GO7ParmT1Tv4$2Iz4gRMP); the new boards.ifc fixture uses freshly generated GUIDs.
+- vite build – pre-existing >500 kB chunk warning (three + web-ifc), unrelated to this feature.
+#### ASSUMPTIONS
+- The loading status for a new file is also shown in the Boards panel (review finding), since the 3D panel holding the original overlay is hidden on that tab.
+- Summary lengths and piece lengths use en-US grouping (1,200 / 2,482.6 m), matching the English UI; the spec leaves Swedish formatting as an open question.
+- Unparsed boards show their full name in the Role / description column, so the Unparsed group rows stay identifiable.
+- Board extraction is requested lazily on the first Boards-tab open per model (measured ~250 ms to open in the dev build with the sample, ~72 ms of it extraction).

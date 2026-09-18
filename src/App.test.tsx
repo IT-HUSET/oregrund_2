@@ -307,6 +307,22 @@ describe('App tabs', () => {
     expect(within(pieces).getByRole('columnheader', { name: /Profile/ })).toHaveAttribute('aria-sort', 'ascending')
   })
 
+  it('shows the loading state when a new file is chosen on the Boards tab', async () => {
+    const pending = deferred<LoadedIfcModel>()
+    loadMock.mockResolvedValueOnce(fakeModel('model-a', beamInfo, boardsA)).mockReturnValueOnce(pending.promise)
+    render(<App />)
+    await choose('a.ifc')
+    await expectModel('model-a')
+    await userEvent.click(tab('Boards'))
+    await screen.findByRole('table', { name: 'Pieces' })
+
+    await choose('b.ifc')
+    expect(await screen.findByRole('status')).toHaveTextContent('Loading b.ifc…')
+    await act(async () => pending.resolve(fakeModel('model-b', beamInfo, boardsB)))
+    await vi.waitFor(() => expect(pieceOids()).toEqual(['700001']))
+    expect(screen.queryByRole('status')).not.toBeInTheDocument()
+  })
+
   it('ignores the board list of a model that has since been replaced', async () => {
     const slowBoards = deferred<Board[]>()
     const first = fakeModel('model-a', beamInfo, boardsA)

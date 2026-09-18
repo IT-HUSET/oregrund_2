@@ -29,8 +29,9 @@ const TABS: { id: Tab; label: string }[] = [
   { id: 'boards', label: 'Boards' },
 ]
 
-// The board list of one loaded model, or the failure to build it.
-type BoardResult = { source: LoadedIfcModel; boards: Board[] } | { source: LoadedIfcModel; error: true }
+// The board list of one model load (ShownModel.seq), or the failure to build it. Keyed by seq
+// rather than the model object so a replaced model is not kept alive.
+type BoardResult = { seq: number; boards: Board[] } | { seq: number; error: true }
 
 function App() {
   const [shown, setShown] = useState<ShownModel | null>(null)
@@ -45,8 +46,8 @@ function App() {
   // Only the most recent file load and the most recent pick may update the UI.
   const loadSeq = useRef(0)
   const pickSeq = useRef(0)
-  // The model whose boards were last requested; results for any other model are ignored.
-  const boardsRequestedFor = useRef<LoadedIfcModel | null>(null)
+  // The model load whose boards were last requested; results for any other load are ignored.
+  const boardsRequestedFor = useRef<number | null>(null)
 
   // Free the previous model once it has been replaced (or on unmount).
   useEffect(() => () => shown?.loaded.dispose(), [shown])
@@ -54,22 +55,22 @@ function App() {
   // Build the board list once per loaded model, the first time the Boards tab is shown.
   useEffect(() => {
     if (tab !== 'boards' || !shown) return
-    const loaded = shown.loaded
-    if (boardsRequestedFor.current === loaded) return
-    boardsRequestedFor.current = loaded
-    loaded.getBoards().then(
+    const { seq } = shown
+    if (boardsRequestedFor.current === seq) return
+    boardsRequestedFor.current = seq
+    shown.loaded.getBoards().then(
       (boards) => {
-        if (boardsRequestedFor.current === loaded) setBoardResult({ source: loaded, boards })
+        if (boardsRequestedFor.current === seq) setBoardResult({ seq, boards })
       },
       (e: unknown) => {
-        if (boardsRequestedFor.current !== loaded) return
+        if (boardsRequestedFor.current !== seq) return
         console.error('Failed to build the board list', e)
-        setBoardResult({ source: loaded, error: true })
+        setBoardResult({ seq, error: true })
       },
     )
   }, [tab, shown])
 
-  const currentBoards = boardResult && boardResult.source === shown?.loaded ? boardResult : null
+  const currentBoards = boardResult && boardResult.seq === shown?.seq ? boardResult : null
 
   async function handleFile(file: File) {
     const seq = ++loadSeq.current
@@ -205,6 +206,11 @@ function App() {
             aria-labelledby="tab-boards"
             hidden={tab !== 'boards'}
           >
+            {loadingFile && (
+              <p className="app__loading" role="status">
+                Loading {loadingFile}…
+              </p>
+            )}
             {/* Keyed by model so a new file resets the sort and filter. */}
             <BoardsPanel
               key={shown.seq}
