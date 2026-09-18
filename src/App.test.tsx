@@ -114,8 +114,8 @@ describe('App', () => {
     expect(panel).toHaveTextContent('IFCBEAM')
     expect(panel).toHaveTextContent('589830')
     expect(panel).toHaveTextContent('0GO7ParmT1Tv4$2Iz4gRMP')
-    expect(within(panel).getByRole('table', { name: 'Pset_BeamCommon' })).toHaveTextContent('ReferenceFD5')
-    expect(within(panel).getByRole('table', { name: 'Qto_BeamBaseQuantities' })).toHaveTextContent('Length255 mm')
+    expect(within(panel).getByRole('table', { name: 'Gemensamma egenskaper – balk' })).toHaveTextContent('BeteckningFD5')
+    expect(within(panel).getByRole('table', { name: 'Mängder – balk' })).toHaveTextContent('Längd255 mm')
     expect(screen.getByTestId('viewport')).toHaveAttribute('data-selected', '38')
   })
 
