@@ -19,6 +19,12 @@ tvärsnitt;hyvlat;45;220;;;;https://www.svenskttra.se/trafakta/allmant-om-tra/kv
 tvärsnitt;hyvlat;45;245;;;;https://www.svenskttra.se/trafakta/allmant-om-tra/kvalitet-och-sortiment/virkessortiment/
 tvärsnitt;hyvlat;70;70;;;;https://www.svenskttra.se/trafakta/allmant-om-tra/kvalitet-och-sortiment/virkessortiment/
 tvärsnitt;hyvlat;95;95;;;;https://www.svenskttra.se/trafakta/allmant-om-tra/kvalitet-och-sortiment/virkessortiment/
+tvärsnitt;hyvlat;12;45;;;;772_H811 (dimension i Vertex-modellen; saknas i Svenskt Träs sortiment)
+tvärsnitt;hyvlat;22;145;;;;772_H811 (dimension i Vertex-modellen; saknas i Svenskt Träs sortiment)
+tvärsnitt;hyvlat;45;182;;;;772_H811 (dimension i Vertex-modellen; saknas i Svenskt Träs sortiment)
+tvärsnitt;hyvlat;90;95;;;;772_H811 (dimension i Vertex-modellen; saknas i Svenskt Träs sortiment)
+tvärsnitt;hyvlat;90;145;;;;772_H811 (dimension i Vertex-modellen; saknas i Svenskt Träs sortiment)
+tvärsnitt;hyvlat;90;220;;;;772_H811 (dimension i Vertex-modellen; saknas i Svenskt Träs sortiment)
 tvärsnitt;sågat;12;48;;;;https://www.svenskttra.se/trafakta/allmant-om-tra/kvalitet-och-sortiment/virkessortiment/
 tvärsnitt;sågat;19;75;;;;https://www.svenskttra.se/trafakta/allmant-om-tra/kvalitet-och-sortiment/virkessortiment/
 tvärsnitt;sågat;19;100;;;;https://www.svenskttra.se/trafakta/allmant-om-tra/kvalitet-och-sortiment/virkessortiment/
@@ -78,6 +84,7 @@ tvärsnitt;sågat;100;200;;;;https://www.svenskttra.se/trafakta/allmant-om-tra/k
 tvärsnitt;sågat;125;125;;;;https://www.svenskttra.se/trafakta/allmant-om-tra/kvalitet-och-sortiment/virkessortiment/
 tvärsnitt;sågat;150;150;;;;https://www.svenskttra.se/trafakta/allmant-om-tra/kvalitet-och-sortiment/virkessortiment/
 hållfasthetsklass;;;;C14;T0;;https://www.svenskttra.se/trafakta/allmant-om-tra/kvalitet-och-sortiment/
+hållfasthetsklass;;;;C16;;;SS-EN 338 (vanlig klass för reglar och panel i Vertex-modellen; ingen T-klass)
 hållfasthetsklass;;;;C18;T1;;https://www.svenskttra.se/trafakta/allmant-om-tra/kvalitet-och-sortiment/
 hållfasthetsklass;;;;C24;T2;;https://www.svenskttra.se/trafakta/allmant-om-tra/kvalitet-och-sortiment/
 hållfasthetsklass;;;;C30;T3;;https://www.svenskttra.se/trafakta/allmant-om-tra/kvalitet-och-sortiment/

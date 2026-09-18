@@ -8,8 +8,8 @@ describe('SVENSKT_TRA_SORTIMENT', () => {
   // S10
   it('is complete and well-formed', () => {
     const stock = SVENSKT_TRA_SORTIMENT
-    expect(stock).toHaveLength(3510)
-    expect(new Set(stock.map((a) => a.id)).size).toBe(3510)
+    expect(stock).toHaveLength(4536)
+    expect(new Set(stock.map((a) => a.id)).size).toBe(4536)
     for (const a of stock) {
       expect(a.profile.thicknessMm).toBeLessThanOrEqual(a.profile.widthMm)
       expect(Number.isInteger(a.lengthMm) && a.lengthMm > 0).toBe(true)
@@ -21,7 +21,10 @@ describe('SVENSKT_TRA_SORTIMENT', () => {
     const expected = [3000, 3300, 3600, 3900, 4200, 4500, 4800, 5100, 5400]
     expect(lengths('hyvlat', 45, 95)).toEqual(expected)
     expect(lengths('sågat', 47, 100)).toEqual(expected)
-    expect(stock.some((a) => a.profile.thicknessMm === 45 && a.profile.widthMm === 182)).toBe(false)
+    expect(stock.some((a) => a.profile.thicknessMm === 45 && a.profile.widthMm === 190)).toBe(false)
+    // Profiles and grade added for the Vertex model (siding 22x145 C16, header 45x182).
+    expect(lengths('hyvlat', 45, 182)).toEqual(expected)
+    expect(stock.filter((a) => a.id.startsWith('22x145-C16-')).map((a) => a.lengthMm)).toEqual(expected)
   })
 })
 

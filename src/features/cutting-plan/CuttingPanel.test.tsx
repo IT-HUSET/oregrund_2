@@ -70,9 +70,9 @@ describe('CuttingPanel', () => {
     render(
       <CuttingPanel
         boards={[
-          makeBoard('FD5 Opening header beam 45x182 C24', 1180, { oid: '11' }),
+          makeBoard('FD5 Opening header beam 45x190 C24', 1180, { oid: '11' }),
           makeBoard('7 Stud 45x95 C24', 6000, { oid: '12' }),
-          makeBoard('36 Siding board 22x145_sta_Z C16', 3000, { oid: '13' }),
+          makeBoard('U9 Glulam beam 42x270 GL', 3000, { oid: '13' }),
           makeBoard('Mystery piece', 900, { oid: '14' }),
           makeBoard('8 Stud 45x95 C24', null, { oid: '15' }),
           makeBoard('9 Stud 45x95 C24', 2400, { oid: '16' }),
@@ -82,9 +82,9 @@ describe('CuttingPanel', () => {
     expect(screen.getByRole('heading', { name: 'Not planned (5)' })).toBeInTheDocument()
     const rows = within(screen.getByRole('table', { name: 'Not planned (5)' })).getAllByRole('row').slice(1)
     expect(rows.map((row) => within(row).getAllByRole('cell').map((c) => c.textContent))).toEqual([
-      ['11', 'FD5 Opening header beam 45x182 C24', '45x182 C24', '1,180', 'No matching stock article'],
+      ['11', 'FD5 Opening header beam 45x190 C24', '45x190 C24', '1,180', 'No matching stock article'],
       ['12', '7 Stud 45x95 C24', '45x95 C24', '6,000', 'Longer than the longest stock length'],
-      ['13', '36 Siding board 22x145_sta_Z C16', '22x145_sta_Z C16', '3,000', 'No matching stock article'],
+      ['13', 'U9 Glulam beam 42x270 GL', '42x270 GL', '3,000', 'No matching stock article'],
       ['14', 'Mystery piece', '', '900', 'Name could not be read'],
       ['15', '8 Stud 45x95 C24', '45x95 C24', '', 'Missing length'],
     ])
@@ -94,7 +94,7 @@ describe('CuttingPanel', () => {
   })
 
   it('collapses a long "Not planned" list', async () => {
-    const boards = Array.from({ length: 21 }, (_, i) => makeBoard(`${i} Header 45x182 C24`, 1000, { oid: String(i) }))
+    const boards = Array.from({ length: 21 }, (_, i) => makeBoard(`${i} Header 45x190 C24`, 1000, { oid: String(i) }))
     render(<CuttingPanel boards={boards} />)
     expect(screen.queryByRole('table', { name: 'Not planned (21)' })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Show' }))

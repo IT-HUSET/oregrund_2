@@ -206,7 +206,7 @@ describe('App', () => {
 const boardsA = [
   makeBoard('1 Stud 45x220 C24', 2408, { oid: '589830' }),
   makeBoard('2 Stud 45x220 C24', 1200, { oid: '589831' }),
-  makeBoard('36 Siding board 22x145_sta_Z C16', 3000, { oid: '589997' }),
+  makeBoard('U9 Glulam beam 42x270 GL', 3000, { oid: '589997' }),
 ]
 const boardsB = [makeBoard('9 Joist 45x195 C24', 4200, { oid: '700001' })]
 
