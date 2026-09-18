@@ -9,8 +9,11 @@ lika med base case, men sämre än eller lika med `optimized_case`.
 
 ## Indata och gemensamma begränsningar
 
-Använd samma kapplankor, stocklängder, enheter och sågklingebredd som i
-`base_case.md`. Material får endast kombineras när följande är identiskt:
+Använd alltid och endast `data/components.xml` som källa, precis som i base
+case. Extrahera individuella `FRAMEPIECE`-poster och använd deras `WIDTH`,
+`HEIGHT`, `LENGTH`, `MAT_CODE`, `USE` och identifierare. Använd samma
+stocklängder, enheter och sågklingebredd som i `base_case.md`. Material får
+endast kombineras när följande är identiskt:
 
 - materialtyp
 - bredd i mm
@@ -67,3 +70,17 @@ totalfält som för base case och inkludera dessutom:
 
 Rapportera fel tydligt om en kapplanka inte ryms i någon stocklängd. Tyst
 dimensionserättning eller bortfiltrering är inte tillåten.
+
+## Filer som Codex ska generera
+
+När denna instruktion ges till en Codex-modell ska modellen skapa:
+
+1. `simulate_buyer_case.py` - en körbar Python-fil som läser
+   `data/components.xml` och implementerar den begränsade two-cut-greedy-
+   heuristiken ovan.
+2. `output/simulation_buyer_case.json` - resultatfilen från körningen.
+
+Resultatfilen ska redovisa alla antaganden, antal inlästa `FRAMEPIECE`-poster,
+kapmönster, antal stockplankor med en respektive två kapplankor, spill per
+stockplanka, totalt estimerat spill och ej hanterade poster. Den får inte läsa
+prisdata eller använda en annan fil i `data/` som indatakälla.

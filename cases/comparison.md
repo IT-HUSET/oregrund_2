@@ -3,7 +3,9 @@
 ## Syfte
 
 Använd denna fil för att jämföra tre simuleringar som bygger på exakt samma
-ritningsdata, stocklängder och sågklingebredd:
+ritningsdata, stocklängder och sågklingebredd. Den enda tillåtna ursprungliga
+datakällan är `data/components.xml`; samtliga tre simuleringar ska ha läst
+samma `FRAMEPIECE`-poster från denna fil:
 
 - `base_case`: en köpt stockplanka per kapplanka
 - `buyer_case`: lokal greedy-kombination med högst två kapplankor per stockplanka
@@ -59,3 +61,17 @@ maskinläsbar slutsats. Resultatet ska alltid ange vilka antaganden som är
 gemensamma samt varna om en lösning inte uppfyller all efterfrågan. Ett lägre
 spill är bara giltigt som förbättring när rätt antal kapplankor faktiskt har
 producerats.
+
+## Filer som Codex ska generera
+
+Efter att de tre scenarioresultaten finns ska Codex skapa:
+
+1. `compare_cases.py` - en körbar Python-fil som läser
+   `output/simulation_base_case.json`, `output/simulation_buyer_case.json`
+   och `output/simulation_optimized_case.json`.
+2. `output/simulation_comparison.json` - jämförelseresultatet.
+
+Skriptet måste först verifiera att alla tre resultat anger
+`data/components.xml` som indatakälla och använder samma stocklängder och
+sågklingebredd. Om detta inte stämmer ska jämförelsen avbrytas med ett tydligt
+fel i resultatfilen i stället för att jämföra inkompatibla spillvärden.

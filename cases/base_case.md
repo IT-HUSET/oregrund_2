@@ -20,8 +20,11 @@ blir då 2 m spill.
 
 ## Indata
 
-Läs trädelar från `data/` eller från en redan framtagen datapunktsfil. Varje
-efterfrågad kapplanka måste minst innehålla:
+Använd alltid och endast `data/components.xml` som källa för detta scenario.
+Filen är en strukturerad Vertex CAD-export och innehåller individuella
+`FRAMEPIECE`-poster med `WIDTH`, `HEIGHT`, `LENGTH`, `MAT_CODE`, `USE` och
+spårbar identifierare. Den är mer lämplig än PDF-ritningarna för exakta
+spillberäkningar. Varje efterfrågad kapplanka måste minst innehålla:
 
 ```json
 {
@@ -76,3 +79,17 @@ Skriv en ny JSON-fil, exempelvis `output/simulation_base_case.json`, med:
 
 Scenario är giltigt endast när antalet levererade kapplankor per unik
 material/dimensions-/hållfasthetsgrupp är exakt lika stort som efterfrågan.
+
+## Filer som Codex ska generera
+
+När denna instruktion ges till en Codex-modell ska modellen skapa:
+
+1. `simulate_base_case.py` - en körbar Python-fil som läser
+   `data/components.xml`, bygger kapplankeindata och utför reglerna ovan.
+2. `output/simulation_base_case.json` - resultatfilen från körningen.
+
+Python-filen ska vara reproducerbar, använda millimeter internt och skriva
+alla antaganden i resultatfilen. JSON-resultatet ska innehålla relevanta
+diagnostikfält, till exempel antal inlästa `FRAMEPIECE`-poster, antal
+kapplankor, antal köpta stockplankor, spill per kapmönster och ej hanterade
+poster. Den får inte läsa prisdata eller andra filer som indata.

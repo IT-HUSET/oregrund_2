@@ -9,7 +9,9 @@ högkvalitativ heuristik.
 
 ## Indata och icke förhandlingsbara krav
 
-Använd samma indatakällor, stocklängder och sågklingebredd som base case.
+Använd alltid och endast `data/components.xml` som källa. Extrahera varje
+`FRAMEPIECE` med dess `WIDTH`, `HEIGHT`, `LENGTH`, `MAT_CODE`, `USE` och
+identifierare. Använd samma stocklängder och sågklingebredd som base case.
 Kapplankor får bara kombineras om materialtyp, bredd, höjd och hållfasthetsklass
 är identiska. Längden behöver inte vara identisk: en 10 m stockplanka kan
 exempelvis kombineras för en 6 m och en 2 m kapplanka, med 2 m spill före kerf.
@@ -63,3 +65,16 @@ fält som de andra fallen samt:
 
 Om optimalitet kan bevisas ska `optimality_proven` vara `true`; annars ska
 resultatet märkas som en bästa funnen lösning, inte som perfekt optimering.
+
+## Filer som Codex ska generera
+
+När denna instruktion ges till en Codex-modell ska modellen skapa:
+
+1. `simulate_optimized_case.py` - en körbar Python-fil som läser
+   `data/components.xml` och utför optimeringen per kompatibel grupp.
+2. `output/simulation_optimized_case.json` - resultatfilen från körningen.
+
+JSON-filen ska dokumentera metod, solver/heuristik, tidsgräns om en sådan
+används, antal inlästa `FRAMEPIECE`-poster, kapmönster, spill per stockplanka,
+totalt estimerat spill, optimalitetsstatus och ej hanterade poster. Den får
+inte läsa prisdata eller använda en annan fil i `data/` som indatakälla.
