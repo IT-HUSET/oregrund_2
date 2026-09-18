@@ -27,20 +27,23 @@ Filen är en strukturerad Vertex CAD-export och innehåller individuella
 spårbar identifierare. Den är mer lämplig än PDF-ritningarna för exakta
 spillberäkningar.
 
-Använd **Derome** som enda inköpskälla för stockplankor. Hämta en ny,
-tidsstämplad katalogsnapshot från dessa delar av Deromes nätkatalog:
+Vid inläsning av `FRAMEPIECE` ska `MAT_CODE = GL` mappas till materialtypen
+`glulam`; övriga poster mappas till `timber`. Samma regel finns i
+`data/stock_sizes.json` under `component_material_mapping` och måste användas
+i alla scenarier.
 
-- konstruktionsvirke: `https://www.derome.se/handla-online/produkter/traeprodukter/plank-reglar/konstruktionsvirke-c24`
-- limträbalk: `https://www.derome.se/handla-online/produkter/traeprodukter/limtrae/limtraebalk`
-- hela trävarusortimentet: `https://www.derome.se/handla-online/produkter/traeprodukter`
+Använd alltid `data/stock_sizes.json` som enda inköpskatalog för
+stockplankor. Filen är den godkända, versionsstyrda simuleringsbasen och
+innehåller en angiven leverantör per material-/dimension-/hållfasthetsprofil
+samt tillåtna stocklängder. Läs `stock_profiles` och slå upp den refererade
+`length_set`; hämta inte data från nätet.
 
-Snapshoten ska innehålla produkt-id, materialtyp, bredd, höjd, hållfasthets-
-klass, verkliga tillgängliga stocklängder, hämtningstid och käll-URL. Den ska
-täckningstestas mot varje unik grupp i `components.xml`. En stockplanka är
-inköpsbar enbart om samma material, bredd, höjd och hållfasthetsklass finns i
-snapshoten. Längden får vara längre än kapplankans längd. Saknas en exakt
-grupp ska den rapporteras som `unsupported`; substituera aldrig till en annan
-dimension eller hållfasthetsklass.
+Katalogen ska täckningstestas mot varje unik grupp i `components.xml`. En
+stockplanka är tillåten enbart om samma material, bredd, höjd och
+hållfasthetsklass finns i `stock_sizes.json`. Längden får vara längre än
+kapplankans längd. Saknas en exakt grupp ska den rapporteras som
+`unsupported`; substituera aldrig till en annan dimension eller
+hållfasthetsklass.
 
 Varje efterfrågad kapplanka måste minst innehålla:
 
@@ -54,7 +57,7 @@ Varje efterfrågad kapplanka måste minst innehålla:
 }
 ```
 
-Stocklängder ska komma från Derome-snapshoten, inte från en hårdkodad lista.
+Stocklängder ska komma från `data/stock_sizes.json`, inte från en hårdkodad lista.
 Använd aldrig en kortare stockplanka än kapplankans längd plus
 sågklingebredd.
 
@@ -113,9 +116,8 @@ När denna instruktion ges till en Codex-modell ska modellen skapa:
 2. `output/simulation_base_case.json` - resultatfilen från körningen.
 
 Python-filen ska vara reproducerbar, använda millimeter internt och skriva
-alla antaganden i resultatfilen. Den ska även skapa
-`output/derome_stock_catalog.json` med den katalogsnapshot som användes.
-JSON-resultatet ska innehålla relevanta diagnostikfält, till exempel antal
-inlästa `FRAMEPIECE`-poster, antal kapplankor, antal köpta stockplankor, spill
-per kapmönster, katalogtäckning och ej hanterade poster. Den får inte läsa
-prisdata eller andra filer som ritningsindata.
+alla antaganden i resultatfilen. JSON-resultatet ska innehålla relevanta
+diagnostikfält, till exempel antal inlästa `FRAMEPIECE`-poster, antal
+kapplankor, antal köpta stockplankor, spill per kapmönster, katalogtäckning,
+använt `profile_id` och angiven leverantör samt ej hanterade poster. Den får
+inte läsa prisdata, använda nätet eller läsa andra filer som ritningsindata.

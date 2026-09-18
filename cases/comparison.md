@@ -6,9 +6,8 @@ Använd denna fil för att jämföra tre simuleringar som bygger på exakt samma
 ritningsdata, inköpskatalog, stocklängder och sågklingebredd. Den enda
 tillåtna ursprungliga ritningsdatakällan är `data/components.xml`; samtliga tre
 simuleringar ska ha läst samma `FRAMEPIECE`-poster från denna fil. Den enda
-tillåtna inköpskällan är Deromes nätkatalog för konstruktionsvirke, limträbalk
-och trävaror, enligt länkarna i `base_case.md`, och samtliga ska ha använt
-samma `output/derome_stock_catalog.json`:
+tillåtna inköpskatalogen är `data/stock_sizes.json`; samtliga ska ha använt
+samma version och samma profiler från denna fil:
 
 - `base_case`: en köpt stockplanka per kapplanka
 - `buyer_case`: lokal greedy-kombination med högst två kapplankor per stockplanka
@@ -76,7 +75,8 @@ Efter att de tre scenarioresultaten finns ska Codex skapa:
 2. `output/simulation_comparison.json` - jämförelseresultatet.
 
 Skriptet måste först verifiera att alla tre resultat anger
-`data/components.xml` som ritningsindatakälla, samma Derome-katalogsnapshot,
-samma stocklängder och `sågklingebredd_mm = 4.5`. Om detta inte stämmer ska
-jämförelsen avbrytas med ett tydligt fel i resultatfilen i stället för att
-jämföra inkompatibla spillvärden.
+`data/components.xml` som ritningsindatakälla, samma
+`data/stock_sizes.json`-version och samma profiler, samma stocklängder och
+`sågklingebredd_mm = 4.5`. Om detta inte stämmer ska jämförelsen avbrytas med
+ett tydligt fel i resultatfilen i stället för att jämföra inkompatibla
+spillvärden.

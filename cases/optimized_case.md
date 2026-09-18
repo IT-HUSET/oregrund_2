@@ -11,15 +11,14 @@ högkvalitativ heuristik.
 
 Använd alltid och endast `data/components.xml` som ritningskälla. Extrahera varje
 `FRAMEPIECE` med dess `WIDTH`, `HEIGHT`, `LENGTH`, `MAT_CODE`, `USE` och
-identifierare.
+identifierare. Mappa `MAT_CODE = GL` till `glulam` och övriga poster till
+`timber`, enligt `component_material_mapping` i `data/stock_sizes.json`.
 
-Använd Derome som enda inköpskälla och samma tidsstämplade
-`output/derome_stock_catalog.json` som base case och buyer case. Katalogen
-ska byggas från Deromes konstruktionsvirke-, limträbalk- och
-trävarusortimentssidor, enligt länkarna i `base_case.md`, och innehålla
-faktiskt tillgängliga stocklängder per material/dimension/hållfasthetsklass.
-Endast katalogens stockplankor får användas; saknade exakta grupper ska
-rapporteras som `unsupported` utan substitution.
+Använd `data/stock_sizes.json` som enda inköpskatalog, precis som i base case
+och buyer case. Läs varje profils angivna leverantör och tillåtna stocklängder
+via dess `length_set`. Endast katalogens stockplankor får användas; saknade
+exakta grupper ska rapporteras som `unsupported` utan substitution. Använd
+inga nätanrop och ingen annan inköpskälla.
 
 Använd `sågklingebredd_mm = 4.5` i varje kapning. Kapplankor får bara kombineras om materialtyp, bredd, höjd och hållfasthetsklass
 Kapplankor får bara kombineras om materialtyp, bredd, höjd och hållfasthetsklass
@@ -86,6 +85,7 @@ När denna instruktion ges till en Codex-modell ska modellen skapa:
 
 JSON-filen ska dokumentera metod, solver/heuristik, tidsgräns om en sådan
 används, antal inlästa `FRAMEPIECE`-poster, kapmönster, spill per stockplanka,
-totalt estimerat spill, 4,5 mm sågsnitt, katalogens hämtningstid,
-optimalitetsstatus och ej hanterade poster. Den får inte läsa prisdata eller
-använda en annan fil i `data/` som ritningsindatakälla.
+totalt estimerat spill, 4,5 mm sågsnitt, `stock_sizes.json`-version,
+använt `profile_id`, angiven leverantör, optimalitetsstatus och ej hanterade
+poster. Den får inte läsa prisdata, använda nätet eller använda en annan fil i
+`data/` som ritningsindatakälla.

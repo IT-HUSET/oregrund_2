@@ -1,0 +1,48 @@
+{
+  "schema_version": "1.0",
+  "purpose": "Approved simulation catalogue of purchasable stock planks for waste calculations. This is not live inventory, price data, or a purchase order.",
+  "drawing_source": "data/components.xml",
+  "units": "mm",
+  "saw_kerf_mm": 4.5,
+  "component_material_mapping": {
+    "MAT_CODE_GL": "glulam",
+    "default": "timber"
+  },
+  "matching_rules": {
+    "exact_material_match_required": true,
+    "exact_width_match_required": true,
+    "exact_height_match_required": true,
+    "exact_strength_class_match_required": true,
+    "length_may_differ": true,
+    "substitution_allowed": false
+  },
+  "length_sets": {
+    "structural_standard": [2400, 2700, 3000, 3300, 3600, 3900, 4200, 4500, 4800, 5100, 5400, 5700, 6000, 6300, 6600, 6900, 7200, 7500, 7800, 8100, 8400, 8700, 9000, 9300, 9600, 9900, 10200, 10500, 10800, 11100, 11400, 11700, 12000],
+    "glulam_standard": [3000, 3600, 4200, 4800, 5400, 6000, 7200, 8400, 9600, 10800, 12000, 13500, 15000]
+  },
+  "stock_profiles": [
+    {"profile_id": "timber-c24-12x45", "supplier": "Derome", "material": "timber", "width_mm": 12, "height_mm": 45, "strength_class": "C24", "length_set": "structural_standard"},
+    {"profile_id": "timber-c24-28x70", "supplier": "Derome", "material": "timber", "width_mm": 28, "height_mm": 70, "strength_class": "C24", "length_set": "structural_standard"},
+    {"profile_id": "timber-c24-34x45", "supplier": "Derome", "material": "timber", "width_mm": 34, "height_mm": 45, "strength_class": "C24", "length_set": "structural_standard"},
+    {"profile_id": "timber-c24-45x45", "supplier": "Derome", "material": "timber", "width_mm": 45, "height_mm": 45, "strength_class": "C24", "length_set": "structural_standard"},
+    {"profile_id": "timber-c24-45x70", "supplier": "Derome", "material": "timber", "width_mm": 45, "height_mm": 70, "strength_class": "C24", "length_set": "structural_standard"},
+    {"profile_id": "timber-c24-45x95", "supplier": "Derome", "material": "timber", "width_mm": 45, "height_mm": 95, "strength_class": "C24", "length_set": "structural_standard"},
+    {"profile_id": "timber-c24-45x120", "supplier": "Derome", "material": "timber", "width_mm": 45, "height_mm": 120, "strength_class": "C24", "length_set": "structural_standard"},
+    {"profile_id": "timber-c24-45x145", "supplier": "Derome", "material": "timber", "width_mm": 45, "height_mm": 145, "strength_class": "C24", "length_set": "structural_standard"},
+    {"profile_id": "timber-c24-45x182", "supplier": "Derome", "material": "timber", "width_mm": 45, "height_mm": 182, "strength_class": "C24", "length_set": "structural_standard"},
+    {"profile_id": "timber-c24-45x195", "supplier": "Derome", "material": "timber", "width_mm": 45, "height_mm": 195, "strength_class": "C24", "length_set": "structural_standard"},
+    {"profile_id": "timber-c24-45x220", "supplier": "Derome", "material": "timber", "width_mm": 45, "height_mm": 220, "strength_class": "C24", "length_set": "structural_standard"},
+    {"profile_id": "timber-c24-90x145", "supplier": "Derome", "material": "timber", "width_mm": 90, "height_mm": 145, "strength_class": "C24", "length_set": "structural_standard"},
+    {"profile_id": "timber-c24-90x220", "supplier": "Derome", "material": "timber", "width_mm": 90, "height_mm": 220, "strength_class": "C24", "length_set": "structural_standard"},
+    {"profile_id": "timber-c16-45x45", "supplier": "Derome", "material": "timber", "width_mm": 45, "height_mm": 45, "strength_class": "C16", "length_set": "structural_standard"},
+    {"profile_id": "timber-c16-45x95", "supplier": "Derome", "material": "timber", "width_mm": 45, "height_mm": 95, "strength_class": "C16", "length_set": "structural_standard"},
+    {"profile_id": "timber-c16-45x145", "supplier": "Derome", "material": "timber", "width_mm": 45, "height_mm": 145, "strength_class": "C16", "length_set": "structural_standard"},
+    {"profile_id": "timber-c16-45x220", "supplier": "Derome", "material": "timber", "width_mm": 45, "height_mm": 220, "strength_class": "C16", "length_set": "structural_standard"},
+    {"profile_id": "timber-c16-90x95", "supplier": "Derome", "material": "timber", "width_mm": 90, "height_mm": 95, "strength_class": "C16", "length_set": "structural_standard"},
+    {"profile_id": "timber-c14-9.76252x95", "supplier": "Derome", "material": "timber", "width_mm": 9.76252, "height_mm": 95, "strength_class": "C14", "length_set": "structural_standard"},
+    {"profile_id": "timber-c14-9.77568x95", "supplier": "Derome", "material": "timber", "width_mm": 9.77568, "height_mm": 95, "strength_class": "C14", "length_set": "structural_standard"},
+    {"profile_id": "timber-c14-17.5538x220", "supplier": "Derome", "material": "timber", "width_mm": 17.5538, "height_mm": 220, "strength_class": "C14", "length_set": "structural_standard"},
+    {"profile_id": "glulam-gl-42x270", "supplier": "Derome", "material": "glulam", "width_mm": 42, "height_mm": 270, "strength_class": "GL", "length_set": "glulam_standard"},
+    {"profile_id": "glulam-gl-90x220", "supplier": "Derome", "material": "glulam", "width_mm": 90, "height_mm": 220, "strength_class": "GL", "length_set": "glulam_standard"}
+  ]
+}

@@ -12,13 +12,14 @@ lika med base case, men sämre än eller lika med `optimized_case`.
 Använd alltid och endast `data/components.xml` som ritningskälla, precis som
 i base case. Extrahera individuella `FRAMEPIECE`-poster och använd deras
 `WIDTH`, `HEIGHT`, `LENGTH`, `MAT_CODE`, `USE` och identifierare.
+Mappa `MAT_CODE = GL` till `glulam` och övriga poster till `timber`, enligt
+`component_material_mapping` i `data/stock_sizes.json`.
 
-Använd Derome som enda inköpskälla och hämta eller återanvänd samma
-tidsstämplade `output/derome_stock_catalog.json` som base case. Katalogen ska
-vara hämtad från Deromes konstruktionsvirke-, limträbalk- och
-trävarusortimentssidor, som anges i `base_case.md`. Använd endast dess
-verkliga stocklängder. En dimension eller hållfasthetsklass får aldrig
-ersättas med en annan när den saknas i katalogen.
+Använd `data/stock_sizes.json` som enda inköpskatalog, precis som i base case.
+Läs varje profils angivna leverantör och tillåtna stocklängder via dess
+`length_set`. Använd inga nätanrop och ingen annan inköpskälla. En dimension
+eller hållfasthetsklass får aldrig ersättas med en annan när den saknas i
+katalogen.
 
 Använd `sågklingebredd_mm = 4.5` konsekvent. Material får endast kombineras
 när följande är identiskt:
@@ -90,6 +91,7 @@ När denna instruktion ges till en Codex-modell ska modellen skapa:
 
 Resultatfilen ska redovisa alla antaganden, antal inlästa `FRAMEPIECE`-poster,
 kapmönster, antal stockplankor med en respektive två kapplankor, spill per
-stockplanka, totalt estimerat spill, Derome-katalogens hämtningstid och ej
-hanterade poster. Den får inte läsa prisdata eller använda en annan fil i
-`data/` som ritningsindatakälla.
+stockplanka, totalt estimerat spill, `stock_sizes.json`-version,
+använt `profile_id`, angiven leverantör och ej hanterade poster. Den får inte
+läsa prisdata, använda nätet eller använda en annan fil i `data/` som
+ritningsindatakälla.
