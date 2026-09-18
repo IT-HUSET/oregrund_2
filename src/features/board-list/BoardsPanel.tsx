@@ -30,13 +30,13 @@ const DEFAULT_SORT: Sort = { column: 'profile', direction: 'ascending' }
 
 const COLUMNS: Column[] = [
   { key: 'oid', label: 'OID', isEmpty: (b) => !b.oid, compare: (a, b) => compareText(a.oid, b.oid) },
-  { key: 'role', label: 'Role / description', isEmpty: (b) => !b.role, compare: (a, b) => compareText(a.role, b.role) },
+  { key: 'role', label: 'Roll / beskrivning', isEmpty: (b) => !b.role, compare: (a, b) => compareText(a.role, b.role) },
   { key: 'element', label: 'Element', isEmpty: (b) => !b.element, compare: (a, b) => compareText(a.element, b.element) },
-  { key: 'profile', label: 'Profile', isEmpty: (b) => !b.profile, compare: (a, b) => compareProfiles(a.profile, b.profile) },
-  { key: 'grade', label: 'Grade', isEmpty: (b) => !b.grade, compare: (a, b) => compareText(a.grade, b.grade) },
+  { key: 'profile', label: 'Profil', isEmpty: (b) => !b.profile, compare: (a, b) => compareProfiles(a.profile, b.profile) },
+  { key: 'grade', label: 'Hållfasthetsklass', isEmpty: (b) => !b.grade, compare: (a, b) => compareText(a.grade, b.grade) },
   {
     key: 'length',
-    label: 'Length (mm)',
+    label: 'Längd (mm)',
     numeric: true,
     isEmpty: (b) => b.length === null,
     compare: (a, b) => (a.length ?? 0) - (b.length ?? 0),
@@ -84,13 +84,13 @@ function BoardList({ boards }: { boards: readonly Board[] }) {
         <table className="board-list__table board-list__summary" aria-labelledby="board-summary-heading">
           <thead>
             <tr>
-              <th scope="col">Profile</th>
-              <th scope="col">Grade</th>
+              <th scope="col">Profil</th>
+              <th scope="col">Hållfasthetsklass</th>
               <th scope="col" className="board-list__num">
-                Count
+                Antal
               </th>
               <th scope="col" className="board-list__num">
-                Total length
+                Total längd
               </th>
             </tr>
           </thead>

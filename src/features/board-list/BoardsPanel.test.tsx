@@ -33,11 +33,11 @@ describe('BoardsPanel', () => {
 
     expect(within(pieces()).getAllByRole('columnheader').map((th) => th.textContent)).toEqual([
       'OID',
-      'Role / description',
+      'Roll / beskrivning',
       'Element',
-      'Profile▲',
-      'Grade',
-      'Length (mm)',
+      'Profil▲',
+      'Hållfasthetsklass',
+      'Längd (mm)',
     ])
     expect(screen.getByText('5 boards · 7.8 m total')).toBeInTheDocument()
     const groupRow = within(summary()).getByRole('button', { name: '45x220 C24' }).closest('tr')!
@@ -53,29 +53,29 @@ describe('BoardsPanel', () => {
   it('sorts by profile, then grade, then length by default', () => {
     render(<BoardsPanel boards={boards} />)
     expect(oids()).toEqual(['589997', '100', '10', '589830', '9'])
-    expect(header(/Profile/)).toHaveAttribute('aria-sort', 'ascending')
+    expect(header(/Profil/)).toHaveAttribute('aria-sort', 'ascending')
   })
 
   // S04: header clicks toggle the order; lengths show as whole mm
   it('sorts by length ascending, then descending', async () => {
     render(<BoardsPanel boards={boards} />)
-    const length = within(header(/Length/)).getByRole('button')
+    const length = within(header(/Längd/)).getByRole('button')
 
     await userEvent.click(length)
     expect(column(5)).toEqual(['255', '900', '1,200', '2,408', '3,000'])
-    expect(header(/Length/)).toHaveAttribute('aria-sort', 'ascending')
-    expect(header(/Profile/)).not.toHaveAttribute('aria-sort')
+    expect(header(/Längd/)).toHaveAttribute('aria-sort', 'ascending')
+    expect(header(/Profil/)).not.toHaveAttribute('aria-sort')
 
     await userEvent.click(length)
     expect(column(5)).toEqual(['3,000', '2,408', '1,200', '900', '255'])
-    expect(header(/Length/)).toHaveAttribute('aria-sort', 'descending')
+    expect(header(/Längd/)).toHaveAttribute('aria-sort', 'descending')
   })
 
   it.each([
     ['OID', 0, ['9', '10', '100', '589830', '589997']],
-    ['Role', 1, ['Joist', 'Siding board', 'Sill plate', 'Stud', 'Stud']],
+    ['Roll', 1, ['Joist', 'Siding board', 'Sill plate', 'Stud', 'Stud']],
     ['Element', 2, ['GOLV-130*', 'GOLV-131*', 'GOLV-131*', 'GOLV-132', '']],
-    ['Grade', 4, ['C16', 'C16', 'C24', 'C24', 'C24']],
+    ['Hållfasthetsklass', 4, ['C16', 'C16', 'C24', 'C24', 'C24']],
   ])('sorts by %s both ways, keeping empty cells last', async (name, index, ascending) => {
     render(<BoardsPanel boards={boards} />)
     const button = within(header(new RegExp(name))).getByRole('button')
