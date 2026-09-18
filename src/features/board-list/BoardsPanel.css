@@ -128,3 +128,8 @@
     color: #4493f8;
   }
 }
+
+.board-list__show {
+  padding: 1px 8px;
+  font-size: 12px;
+}

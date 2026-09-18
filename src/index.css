@@ -13,6 +13,8 @@
   --cut-b: #80ccff;
   --cut-text: #0a3069;
   --waste: #d1d9e0;
+  --cut-hover: rgb(255 255 255 / 0.35);
+  --trace-current: #bf5700;
 
   font: 16px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
   color-scheme: light dark;
@@ -36,6 +38,8 @@
     --cut-b: #1158c7;
     --cut-text: #f0f6fc;
     --waste: #3d444d;
+    --cut-hover: rgb(255 255 255 / 0.15);
+    --trace-current: #ffa657;
   }
 }
 
@@ -56,4 +60,14 @@ button {
 button:focus-visible {
   outline: 2px solid #0969da;
   outline-offset: 2px;
+}
+
+/* Readable by screen readers, not shown. */
+.visually-hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }

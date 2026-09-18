@@ -1,8 +1,10 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { computeCuttingPlan } from '../../domain/1dcutting/traceability.ts'
+import type { Board } from '../../domain/boards/board.ts'
 import { makeBoard } from '../../domain/boards/__fixtures__/boards.ts'
-import { CuttingPanel } from './CuttingPanel.tsx'
+import { CuttingPanel, type CutTarget, type ModelTrace } from './CuttingPanel.tsx'
 
 const S01 = [
   makeBoard('1 Stud 45x95 C24', 2000, { oid: 'A', element: 'VÄGG-999' }),
@@ -10,6 +12,10 @@ const S01 = [
   makeBoard('3 Nogging 45x95 C24', 1500, { oid: 'C' }),
   makeBoard('4 Nogging 45x95 C24', 1000, { oid: 'D' }),
 ]
+
+function Panel({ boards, ...rest }: { boards: Board[]; onShowInModel?(t: ModelTrace): void; cutTarget?: CutTarget }) {
+  return <CuttingPanel boards={boards} plan={computeCuttingPlan(boards)} {...rest} />
+}
 
 const stat = (label: string) => screen.getByText(label, { selector: 'dt' }).nextElementSibling?.textContent
 const bars = () => screen.getAllByRole('list', { name: /board \d+:/ })
@@ -23,7 +29,7 @@ beforeEach(() => {
 describe('CuttingPanel', () => {
   // S14
   it('shows the totals, the order list and the cut boards', () => {
-    render(<CuttingPanel boards={S01} />)
+    render(<Panel boards={S01} />)
 
     expect(stat('Pieces placed')).toBe('4')
     expect(stat('Boards to buy')).toBe('2')
@@ -53,7 +59,7 @@ describe('CuttingPanel', () => {
 
   // S15
   it('makes every cut traceable to its IFC element', async () => {
-    render(<CuttingPanel boards={S01} />)
+    render(<Panel boards={S01} />)
     const cut = segments(bars()[0])[0]
     const expected = 'OID A · Stud · VÄGG-999 · 2,000 mm · offset 0'
     expect(cut).toHaveAccessibleName(expected)
@@ -68,7 +74,7 @@ describe('CuttingPanel', () => {
   // S16
   it('lists unplaced and skipped pieces with a reason', () => {
     render(
-      <CuttingPanel
+      <Panel
         boards={[
           makeBoard('FD5 Opening header beam 45x190 C24', 1180, { oid: '11' }),
           makeBoard('7 Stud 45x95 C24', 6000, { oid: '12' }),
@@ -95,7 +101,7 @@ describe('CuttingPanel', () => {
 
   it('collapses a long "Not planned" list', async () => {
     const boards = Array.from({ length: 21 }, (_, i) => makeBoard(`${i} Header 45x190 C24`, 1000, { oid: String(i) }))
-    render(<CuttingPanel boards={boards} />)
+    render(<Panel boards={boards} />)
     expect(screen.queryByRole('table', { name: 'Not planned (21)' })).not.toBeInTheDocument()
     await userEvent.click(screen.getByRole('button', { name: 'Show' }))
     expect(screen.getByRole('table', { name: 'Not planned (21)' })).toBeInTheDocument()
@@ -104,22 +110,70 @@ describe('CuttingPanel', () => {
 
   // S17
   it('shows loading, empty and board-list error states', () => {
-    const { rerender } = render(<CuttingPanel boards={null} />)
+    const { rerender } = render(<CuttingPanel boards={null} plan={null} />)
     expect(screen.getByText('Planning cuts…')).toBeInTheDocument()
-    rerender(<CuttingPanel boards={[]} />)
+    rerender(<Panel boards={[]} />)
     expect(screen.getByText('No boards found in this model.')).toBeInTheDocument()
-    rerender(<CuttingPanel boards={null} error />)
+    rerender(<CuttingPanel boards={null} plan={null} error />)
     expect(screen.getByText('The board list could not be built from this model.')).toBeInTheDocument()
   })
 
   // S17 (d)
   it('shows an error when the plan cannot be computed', () => {
-    render(
-      <CuttingPanel
-        boards={[makeBoard('1 Stud 45x95 C24', 1000, { oid: 'X' }), makeBoard('2 Stud 45x95 C24', 900, { oid: 'X' })]}
-      />,
-    )
+    render(<Panel boards={[makeBoard('1 Stud 45x95 C24', 1000, { oid: 'X' }), makeBoard('2 Stud 45x95 C24', 900, { oid: 'X' })]} />)
     expect(screen.getByText('The cutting plan could not be computed for this model.')).toBeInTheDocument()
-    expect(console.error).toHaveBeenCalledWith('Failed to compute the cutting plan', expect.any(Error))
+  })
+})
+
+// Cut traceability
+describe('CuttingPanel show in 3D', () => {
+  // S03 + S12
+  it('shows a cut in 3D by click or keyboard', async () => {
+    const onShowInModel = vi.fn()
+    render(<Panel boards={S01} onShowInModel={onShowInModel} />)
+    const cut = segments(bars()[0])[1]
+    expect(cut).toHaveAccessibleName('OID C · Nogging · GOLV-999 · 1,500 mm · offset 2,000')
+    const button = within(cut).getByRole('button', { name: 'Show OID C in 3D' })
+    await userEvent.click(button)
+    expect(onShowInModel).toHaveBeenLastCalledWith({ oids: ['C'], primary: 'C' })
+
+    onShowInModel.mockClear()
+    within(segments(bars()[0])[0]).getByRole('button').focus()
+    await userEvent.keyboard('{Enter}')
+    expect(onShowInModel).toHaveBeenLastCalledWith({ oids: ['A'], primary: 'A' })
+  })
+
+  // S04
+  it('shows a whole board and a whole order line in 3D', async () => {
+    const onShowInModel = vi.fn()
+    render(<Panel boards={S01} onShowInModel={onShowInModel} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Show 45x95 C24 board 2: 3,000 mm in 3D' }))
+    expect(onShowInModel).toHaveBeenLastCalledWith({ oids: ['B', 'D'], label: '45x95 C24 board 2: 3,000 mm' })
+
+    await userEvent.click(screen.getByRole('button', { name: 'Show 45x95 C24 · 3,600 mm in 3D' }))
+    expect(onShowInModel).toHaveBeenLastCalledWith({ oids: ['A', 'C'], label: '45x95 C24 · 3,600 mm' })
+  })
+
+  // S11 (b)
+  it('disables the action for a cut whose element is not in the board list', () => {
+    const boards = [makeBoard('1 Stud 45x95 C24', 1000, { oid: 'A' })]
+    const plan = computeCuttingPlan(boards)
+    render(<CuttingPanel boards={[makeBoard('9 Other 45x70 C24', 500, { oid: 'Z' })]} plan={plan} onShowInModel={() => {}} />)
+    const button = screen.getByRole('button', { name: 'Show OID A in 3D' })
+    expect(button).toBeDisabled()
+    expect(button).toHaveAttribute('title', 'Element not found in the model')
+  })
+
+  // S09
+  it('scrolls to, focuses and marks the target cut', () => {
+    const scrollIntoView = vi.fn()
+    Element.prototype.scrollIntoView = scrollIntoView
+    render(<Panel boards={S01} onShowInModel={() => {}} cutTarget={{ oid: 'D', seq: 1 }} />)
+    const cut = segments(bars()[1])[1]
+    expect(cut).toHaveAttribute('aria-current', 'true')
+    expect(within(cut).getByRole('button')).toHaveFocus()
+    expect(scrollIntoView).toHaveBeenCalled()
+    expect(segments(bars()[0]).filter((s) => s.hasAttribute('aria-current'))).toEqual([])
+    delete (Element.prototype as Partial<Element>).scrollIntoView
   })
 })

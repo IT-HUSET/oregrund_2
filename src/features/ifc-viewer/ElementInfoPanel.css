@@ -71,3 +71,23 @@
 .info-panel__empty {
   color: var(--text-muted);
 }
+
+.info-panel__cut-lines {
+  display: flex;
+  flex-direction: column;
+  margin: 0 0 8px;
+  font-variant-numeric: tabular-nums;
+}
+
+.info-panel__siblings {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 12px;
+}
+
+.info-panel__piece {
+  padding: 1px 8px;
+  font-size: 13px;
+}

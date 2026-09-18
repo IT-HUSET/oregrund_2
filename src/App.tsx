@@ -1,12 +1,14 @@
-import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import type { Board } from './domain/boards/board.ts'
+import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { buildTraceIndex, computeCuttingPlan } from './domain/1dcutting/traceability.ts'
+import { isBoardType, type Board } from './domain/boards/board.ts'
 import type { ElementInfo } from './domain/ifc/elementInfo.ts'
 import { BoardsPanel } from './features/board-list/BoardsPanel.tsx'
-import { CuttingPanel } from './features/cutting-plan/CuttingPanel.tsx'
+import { CuttingPanel, type CutTarget, type ModelTrace } from './features/cutting-plan/CuttingPanel.tsx'
 import { createBrowserIfcApi } from './features/ifc-viewer/createIfcApi.ts'
-import { ElementInfoPanel } from './features/ifc-viewer/ElementInfoPanel.tsx'
+import { ElementInfoPanel, type CuttingTrace, type HighlightedSet } from './features/ifc-viewer/ElementInfoPanel.tsx'
 import { IfcLoadError, loadIfcModel, type IfcLoadErrorKind, type LoadedIfcModel } from './features/ifc-viewer/ifcLoader.ts'
 import { IfcViewport } from './features/ifc-viewer/IfcViewport.tsx'
+import { EMPTY_SELECTION, type ViewportSelection } from './features/ifc-viewer/selection.ts'
 import lindbacksLogo from './assets/lindbacks-logo.svg'
 import './App.css'
 
@@ -40,24 +42,30 @@ function App() {
   const [shown, setShown] = useState<ShownModel | null>(null)
   const [loadingFile, setLoadingFile] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
-  const [selectedId, setSelectedId] = useState<number | null>(null)
+  const [selection, setSelection] = useState<ViewportSelection>(EMPTY_SELECTION)
+  const [highlighted, setHighlighted] = useState<HighlightedSet | null>(null)
   const [info, setInfo] = useState<ElementInfo | null>(null)
   const [tab, setTab] = useState<Tab>('model')
   const [boardResult, setBoardResult] = useState<BoardResult | null>(null)
+  const [cutTarget, setCutTarget] = useState<CutTarget | null>(null)
   const inputRef = useRef<HTMLInputElement>(null)
   const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({})
   // Only the most recent file load and the most recent pick may update the UI.
   const loadSeq = useRef(0)
   const pickSeq = useRef(0)
+  const frameSeq = useRef(0)
+  const cutTargetSeq = useRef(0)
+  const selectedId = selection.primary
   // The model load whose boards were last requested; results for any other load are ignored.
   const boardsRequestedFor = useRef<number | null>(null)
 
   // Free the previous model once it has been replaced (or on unmount).
   useEffect(() => () => shown?.loaded.dispose(), [shown])
 
-  // Build the board list once per loaded model, the first time Boards or Cutting is shown.
+  // Build the board list once per loaded model, the first time Boards or Cutting is shown or an
+  // element is picked (its Cutting section needs the plan).
   useEffect(() => {
-    if (tab === 'model' || !shown) return
+    if ((tab === 'model' && selectedId === null) || !shown) return
     const { seq } = shown
     if (boardsRequestedFor.current === seq) return
     boardsRequestedFor.current = seq
@@ -71,11 +79,30 @@ function App() {
         setBoardResult({ seq, error: true })
       },
     )
-  }, [tab, shown])
+  }, [tab, shown, selectedId])
 
   const currentBoards = boardResult && boardResult.seq === shown?.seq ? boardResult : null
   const boards = currentBoards && 'boards' in currentBoards ? currentBoards.boards : null
   const boardsError = currentBoards !== null && 'error' in currentBoards
+
+  // The cutting plan and the lookups that link it to the 3D model, once per board list.
+  const plan = useMemo(() => (boards ? computeCuttingPlan(boards) : null), [boards])
+  const traceIndex = useMemo(() => (plan && 'plan' in plan ? buildTraceIndex(plan.plan, plan.skipped) : null), [plan])
+  const boardByOid = useMemo(() => new Map((boards ?? []).map((b) => [b.oid, b])), [boards])
+  const boardById = useMemo(() => new Map((boards ?? []).map((b) => [b.expressId, b])), [boards])
+
+  useEffect(() => {
+    if (plan && 'error' in plan) console.error('Failed to compute the cutting plan', plan.error)
+  }, [plan])
+
+  const trace = useMemo<CuttingTrace | undefined>(() => {
+    if (!info || selectedId === null || !isBoardType(info.ifcType) || boardsError) return undefined
+    if (!boards || !plan) return { kind: 'pending' }
+    const board = boardById.get(selectedId)
+    if (!board) return undefined
+    if (!traceIndex) return { kind: 'error' }
+    return traceIndex.byOid(board.oid)
+  }, [info, selectedId, boards, boardsError, plan, traceIndex, boardById])
 
   async function handleFile(file: File) {
     const seq = ++loadSeq.current
@@ -90,7 +117,9 @@ function App() {
         return
       }
       pickSeq.current++
-      setSelectedId(null)
+      setSelection(EMPTY_SELECTION)
+      setHighlighted(null)
+      setCutTarget(null)
       setInfo(null)
       setShown({ fileName: file.name, loaded, seq })
     } catch (e) {
@@ -102,14 +131,16 @@ function App() {
     }
   }
 
-  const handlePick = useCallback(
-    (expressId: number | null) => {
+  // Shows the element info of the primary element (or none) and applies the selection.
+  const select = useCallback(
+    (next: ViewportSelection, set: HighlightedSet | null = null) => {
       const seq = ++pickSeq.current
-      setSelectedId(expressId)
+      setSelection(next)
+      setHighlighted(set)
       setInfo(null)
-      if (expressId === null || !shown) return
+      if (next.primary === null || !shown) return
       shown.loaded
-        .getElementInfo(expressId)
+        .getElementInfo(next.primary)
         .then((result) => {
           if (seq === pickSeq.current) setInfo(result)
         })
@@ -118,13 +149,53 @@ function App() {
     [shown],
   )
 
+  // A plain click in 3D: one element, no related set, no ghosting.
+  const handlePick = useCallback(
+    (expressId: number | null) =>
+      select({ primary: expressId, related: [], ghostOthers: false, frameRequest: frameSeq.current }),
+    [select],
+  )
+
+  // Show pieces from Kapning or Brädor in 3D: highlight, ghost the rest, frame them.
+  const showInModel = useCallback(
+    ({ oids, primary, label }: ModelTrace) => {
+      const idOf = (oid: string) => boardByOid.get(oid)?.expressId
+      const primaryId = primary === undefined ? null : (idOf(primary) ?? null)
+      const related = oids
+        .filter((oid) => oid !== primary)
+        .map(idOf)
+        .filter((id) => id !== undefined)
+      if (primaryId === null && related.length === 0) return
+      select(
+        { primary: primaryId, related, ghostOthers: true, frameRequest: ++frameSeq.current },
+        primaryId === null ? { label: label ?? '', count: related.length } : null,
+      )
+      setCutTarget(null)
+      setTab('model')
+    },
+    [boardByOid, select],
+  )
+
+  const showInCuttingList = useCallback((oid: string) => {
+    setCutTarget({ oid, seq: ++cutTargetSeq.current })
+    setTab('cutting')
+  }, [])
+
+  const selectPiece = useCallback((oid: string) => showInModel({ oids: [oid], primary: oid }), [showInModel])
+  const showWholeModel = useCallback(() => setSelection((s) => ({ ...s, ghostOthers: false })), [])
+
+  function selectTab(next: Tab) {
+    if (next !== 'cutting') setCutTarget(null)
+    setTab(next)
+  }
+
   function handleTabKey(e: KeyboardEvent<HTMLButtonElement>) {
     const index = TABS.findIndex((t) => t.id === tab)
     const next = { ArrowRight: index + 1, ArrowLeft: index - 1, Home: 0, End: TABS.length - 1 }[e.key]
     if (next === undefined) return
     e.preventDefault()
     const target = TABS[(next + TABS.length) % TABS.length].id
-    setTab(target)
+    selectTab(target)
     tabRefs.current[target]?.focus()
   }
 
@@ -176,7 +247,7 @@ function App() {
               aria-selected={tab === t.id}
               tabIndex={tab === t.id ? 0 : -1}
               className="app__tab"
-              onClick={() => setTab(t.id)}
+              onClick={() => selectTab(t.id)}
               onKeyDown={handleTabKey}
             >
               {t.label}
@@ -195,7 +266,12 @@ function App() {
           hidden={shown !== null && tab !== 'model'}
         >
           <div className="app__stage">
-            <IfcViewport model={shown?.loaded.root ?? null} selectedExpressId={selectedId} onPick={handlePick} />
+            <IfcViewport
+              model={shown?.loaded.root ?? null}
+              selection={selection}
+              onPick={handlePick}
+              onShowWholeModel={showWholeModel}
+            />
             {loadingFile ? (
               <div className="app__overlay" role="status">
                 Loading {loadingFile}…
@@ -204,7 +280,14 @@ function App() {
               !shown && <div className="app__overlay">Choose an IFC file to view it in 3D.</div>
             )}
           </div>
-          <ElementInfoPanel info={info} loading={selectedId !== null && info === null} />
+          <ElementInfoPanel
+            info={info}
+            loading={selectedId !== null && info === null}
+            trace={trace}
+            highlighted={highlighted}
+            onSelectPiece={selectPiece}
+            onShowInCuttingList={showInCuttingList}
+          />
         </div>
         {shown && (
           <div
@@ -220,7 +303,7 @@ function App() {
               </p>
             )}
             {/* Keyed by model so a new file resets the sort and filter. */}
-            <BoardsPanel key={shown.seq} boards={boards} error={boardsError} />
+            <BoardsPanel key={shown.seq} boards={boards} error={boardsError} onShowInModel={showInModel} />
           </div>
         )}
         {shown && (
@@ -231,7 +314,14 @@ function App() {
             aria-labelledby="tab-cutting"
             hidden={tab !== 'cutting'}
           >
-            <CuttingPanel key={shown.seq} boards={boards} error={boardsError} />
+            <CuttingPanel
+              key={shown.seq}
+              boards={boards}
+              plan={plan}
+              error={boardsError}
+              onShowInModel={showInModel}
+              cutTarget={cutTarget}
+            />
           </div>
         )}
       </main>

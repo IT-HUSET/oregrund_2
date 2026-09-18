@@ -68,6 +68,11 @@ const BOARD_KINDS: Record<string, BoardKind> = {
   IFCCOVERING: 'siding',
 }
 
+// True for the IFC entity types that are extracted as boards (any case).
+export function isBoardType(ifcType: string): boolean {
+  return ifcType.toUpperCase() in BOARD_KINDS
+}
+
 // Vertex BD names end in `<T>x<W>[suffix] <grade>`, e.g. `100 Sill plate 45x220_S C24`.
 // Everything before the profile is `<piece code> <role>`.
 const NAME_PATTERN = /^(.*?)(?:^|\s)((\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)(_\S+)?)\s+([A-Za-z][A-Za-z0-9]*)$/

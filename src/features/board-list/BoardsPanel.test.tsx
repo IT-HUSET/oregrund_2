@@ -1,6 +1,6 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { makeBoard } from '../../domain/boards/__fixtures__/boards.ts'
 import { BoardsPanel } from './BoardsPanel.tsx'
 
@@ -154,5 +154,22 @@ describe('BoardsPanel', () => {
     render(<BoardsPanel boards={[makeBoard('1 <b>bold</b> 45x70 C24', 1)]} />)
     expect(within(pieces()).getByText('<b>bold</b>')).toBeInTheDocument()
     expect(pieces().querySelector('b')).toBeNull()
+  })
+})
+
+// Cut traceability S10 + S12
+describe('BoardsPanel show in 3D', () => {
+  it('offers a keyboard-reachable "Show in 3D" action per row', async () => {
+    const onShowInModel = vi.fn()
+    render(<BoardsPanel boards={flagged} onShowInModel={onShowInModel} />)
+    const button = within(pieces()).getByRole('button', { name: 'Show OID 700001 in 3D' })
+    button.focus()
+    await userEvent.keyboard('{Enter}')
+    expect(onShowInModel).toHaveBeenCalledWith({ oids: ['700001'], primary: '700001' })
+  })
+
+  it('has no action column without a handler', () => {
+    render(<BoardsPanel boards={boards} />)
+    expect(within(pieces()).queryByRole('button', { name: /in 3D/ })).not.toBeInTheDocument()
   })
 })

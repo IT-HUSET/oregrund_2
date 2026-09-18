@@ -11,10 +11,12 @@
   touch-action: none;
 }
 
-.viewport__reset {
+.viewport__controls {
   position: absolute;
   right: 12px;
   bottom: 12px;
+  display: flex;
+  gap: 8px;
 }
 
 .viewport--message {

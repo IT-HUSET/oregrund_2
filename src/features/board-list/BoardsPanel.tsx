@@ -8,7 +8,11 @@ interface BoardsPanelProps {
   // null while the board list is being built.
   boards: readonly Board[] | null
   error?: boolean
+  // Enables a "Show in 3D" action per row.
+  onShowInModel?(trace: { oids: string[]; primary: string }): void
 }
+
+type ShowInModel = BoardsPanelProps['onShowInModel']
 
 type SortColumn = 'oid' | 'role' | 'element' | 'profile' | 'grade' | 'length'
 type SortDirection = 'ascending' | 'descending'
@@ -44,7 +48,7 @@ const COLUMNS: Column[] = [
   },
 ]
 
-export function BoardsPanel({ boards, error = false }: BoardsPanelProps) {
+export function BoardsPanel({ boards, error = false, onShowInModel }: BoardsPanelProps) {
   if (error) return <p className="board-list__message">The board list could not be built from this model.</p>
   if (!boards)
     return (
@@ -53,10 +57,10 @@ export function BoardsPanel({ boards, error = false }: BoardsPanelProps) {
       </p>
     )
   if (boards.length === 0) return <p className="board-list__message">No boards found in this model.</p>
-  return <BoardList boards={boards} />
+  return <BoardList boards={boards} onShowInModel={onShowInModel} />
 }
 
-function BoardList({ boards }: { boards: readonly Board[] }) {
+function BoardList({ boards, onShowInModel }: { boards: readonly Board[]; onShowInModel: ShowInModel }) {
   const [sort, setSort] = useState<Sort>(DEFAULT_SORT)
   const [filter, setFilter] = useState<string | null>(null)
   const summary = useMemo(() => summarizeBoards(boards), [boards])
@@ -159,6 +163,11 @@ function BoardList({ boards }: { boards: readonly Board[] }) {
                   </th>
                 )
               })}
+              {onShowInModel && (
+                <th scope="col">
+                  <span className="visually-hidden">3D</span>
+                </th>
+              )}
             </tr>
           </thead>
           <tbody>
@@ -179,6 +188,18 @@ function BoardList({ boards }: { boards: readonly Board[] }) {
                     formatCount(Math.round(board.length))
                   )}
                 </td>
+                {onShowInModel && (
+                  <td>
+                    <button
+                      type="button"
+                      className="board-list__show"
+                      aria-label={`Show OID ${board.oid} in 3D`}
+                      onClick={() => onShowInModel({ oids: [board.oid], primary: board.oid })}
+                    >
+                      3D
+                    </button>
+                  </td>
+                )}
               </tr>
             ))}
           </tbody>

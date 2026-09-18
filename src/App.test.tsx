@@ -6,19 +6,40 @@ import type { Board } from './domain/boards/board.ts'
 import { makeBoard } from './domain/boards/__fixtures__/boards.ts'
 import type { ElementInfo } from './domain/ifc/elementInfo.ts'
 import { IfcLoadError, loadIfcModel, type LoadedIfcModel } from './features/ifc-viewer/ifcLoader.ts'
+import type { ViewportSelection } from './features/ifc-viewer/selection.ts'
 import App from './App.tsx'
 
 // WebGL is unavailable in jsdom: the viewport is replaced by a stub that shows which model is
 // mounted and lets tests simulate picks. The loader is mocked; its behaviour is covered by
 // src/features/ifc-viewer/ifcLoader.test.ts.
-vi.mock('./features/ifc-viewer/IfcViewport.tsx', () => ({
-  IfcViewport: (props: { model: THREE.Object3D | null; selectedExpressId: number | null; onPick(id: number | null): void }) => (
-    <div data-testid="viewport" data-model={props.model?.name ?? ''} data-selected={props.selectedExpressId ?? ''}>
-      <button onClick={() => props.onPick(38)}>pick 38</button>
-      <button onClick={() => props.onPick(null)}>pick empty</button>
-    </div>
-  ),
-}))
+vi.mock('./features/ifc-viewer/IfcViewport.tsx', () => {
+  return {
+    IfcViewport: (props: {
+      model: THREE.Object3D | null
+      selection: ViewportSelection
+      onPick(id: number | null): void
+      onShowWholeModel?(): void
+    }) => (
+      <div
+        data-testid="viewport"
+        data-model={props.model?.name ?? ''}
+        data-selected={props.selection.primary ?? ''}
+        data-related={props.selection.related.join(',')}
+        data-ghost={String(props.selection.ghostOthers)}
+        data-frame={props.selection.frameRequest}
+      >
+        <button onClick={() => props.onPick(38)}>pick 38</button>
+        <button onClick={() => props.onPick(null)}>pick empty</button>
+        {props.model?.children.map((child) => (
+          <button key={child.id} onClick={() => props.onPick(child.userData.expressID)}>
+            pick {child.name}
+          </button>
+        ))}
+        {props.selection.ghostOthers && <button onClick={props.onShowWholeModel}>Show whole model</button>}
+      </div>
+    ),
+  }
+})
 vi.mock('./features/ifc-viewer/createIfcApi.ts', () => ({ createBrowserIfcApi: vi.fn() }))
 vi.mock('./features/ifc-viewer/ifcLoader.ts', async (importOriginal) => ({
   ...(await importOriginal<typeof import('./features/ifc-viewer/ifcLoader.ts')>()),
@@ -448,5 +469,153 @@ describe('App Cutting tab', () => {
     expect(await within(panel).findByText('The board list could not be built from this model.')).toBeInTheDocument()
     await userEvent.click(tab('3D-modell'))
     expect(screen.getByTestId('viewport')).toHaveAttribute('data-model', 'model-a')
+  })
+})
+
+// Cut traceability: the four S01 pieces plus one unplannable board
+const traced = [
+  makeBoard('1 Stud 45x95 C24', 2000, { oid: 'A' }),
+  makeBoard('2 Stud 45x95 C24', 2000, { oid: 'B' }),
+  makeBoard('3 Nogging 45x95 C24', 1500, { oid: 'C' }),
+  makeBoard('4 Nogging 45x95 C24', 1000, { oid: 'D' }),
+  makeBoard('5 Header 45x190 C24', 1200, { oid: 'E' }),
+]
+const idOf = (oid: string) => String(traced.find((b) => b.oid === oid)!.expressId)
+
+// A model whose root has one pickable child per board, and whose element info follows the pick.
+function tracedModel(name = 'model-a'): LoadedIfcModel {
+  const model = fakeModel(name, beamInfo, traced)
+  for (const board of traced) {
+    const child = new THREE.Object3D()
+    child.name = board.oid
+    child.userData.expressID = board.expressId
+    model.root.add(child)
+  }
+  vi.mocked(model.getElementInfo).mockImplementation(async (id) => {
+    const board = traced.find((b) => b.expressId === id)!
+    return { ...beamInfo, expressId: id, name: board.name, tag: board.oid }
+  })
+  return model
+}
+
+const viewport = () => screen.getByTestId('viewport')
+const kapning = () => screen.getByRole('tabpanel', { name: 'Kapning' })
+const cutting = () => screen.getByRole('region', { name: 'Cutting' })
+
+async function openCutting() {
+  loadMock.mockResolvedValueOnce(tracedModel())
+  render(<App />)
+  await choose('a.ifc')
+  await expectModel('model-a')
+  await userEvent.click(tab('Kapning'))
+  await within(kapning()).findByRole('heading', { name: 'Waste report' })
+}
+
+describe('App cut traceability', () => {
+  // S03
+  it('shows a cut in 3D: switches tab, selects, ghosts and frames it', async () => {
+    await openCutting()
+    await userEvent.click(within(kapning()).getByRole('button', { name: 'Show OID C in 3D' }))
+
+    expect(tab('3D-modell')).toHaveAttribute('aria-selected', 'true')
+    expect(viewport()).toHaveAttribute('data-selected', idOf('C'))
+    expect(viewport()).toHaveAttribute('data-related', '')
+    expect(viewport()).toHaveAttribute('data-ghost', 'true')
+    expect(viewport()).toHaveAttribute('data-frame', '1')
+    expect(await screen.findByRole('heading', { name: '3 Nogging 45x95 C24' })).toBeInTheDocument()
+
+    await userEvent.click(screen.getByRole('button', { name: 'Show whole model' }))
+    expect(viewport()).toHaveAttribute('data-ghost', 'false')
+    expect(viewport()).toHaveAttribute('data-selected', idOf('C'))
+  })
+
+  // S04
+  it('shows a whole board and a whole order line in 3D', async () => {
+    await openCutting()
+    await userEvent.click(within(kapning()).getByRole('button', { name: 'Show 45x95 C24 board 2: 3,000 mm in 3D' }))
+    expect(viewport()).toHaveAttribute('data-selected', '')
+    expect(viewport()).toHaveAttribute('data-related', `${idOf('B')},${idOf('D')}`)
+    expect(viewport()).toHaveAttribute('data-ghost', 'true')
+    expect(screen.getByRole('heading', { name: '2 pieces highlighted' })).toBeInTheDocument()
+    expect(screen.getByText('45x95 C24 board 2: 3,000 mm')).toBeInTheDocument()
+
+    await userEvent.click(tab('Kapning'))
+    await userEvent.click(within(kapning()).getByRole('button', { name: 'Show 45x95 C24 · 3,600 mm in 3D' }))
+    expect(viewport()).toHaveAttribute('data-related', `${idOf('A')},${idOf('C')}`)
+    expect(viewport()).toHaveAttribute('data-frame', '2')
+  })
+
+  // S07 + S09
+  it('shows the cutting context of a picked board and links back to the cut', async () => {
+    loadMock.mockResolvedValueOnce(tracedModel())
+    render(<App />)
+    await choose('a.ifc')
+    await expectModel('model-a')
+    await userEvent.click(screen.getByRole('button', { name: 'pick C' }))
+
+    await vi.waitFor(() => expect(cutting()).toHaveTextContent('45x95 C24 · 3,600 mm · board 1'))
+    expect(cutting()).toHaveTextContent('Cut 2 of 2 · offset 2,000 mm · 1,500 mm')
+    expect(viewport()).toHaveAttribute('data-ghost', 'false')
+
+    await userEvent.click(within(cutting()).getByRole('button', { name: 'Select OID A in 3D' }))
+    expect(viewport()).toHaveAttribute('data-selected', idOf('A'))
+    expect(viewport()).toHaveAttribute('data-related', '')
+    await vi.waitFor(() => expect(cutting()).toHaveTextContent('Cut 1 of 2 · offset 0 mm · 2,000 mm'))
+
+    await userEvent.click(within(cutting()).getByRole('button', { name: 'Show in cutting list' }))
+    expect(tab('Kapning')).toHaveAttribute('aria-selected', 'true')
+    const segment = within(kapning()).getByRole('listitem', { name: /^OID A ·/ })
+    expect(segment).toHaveAttribute('aria-current', 'true')
+    expect(within(segment).getByRole('button')).toHaveFocus()
+
+    // A plain click in 3D after a trace ends ghosting and is a plain selection.
+    await userEvent.click(tab('3D-modell'))
+    await userEvent.click(screen.getByRole('button', { name: 'pick E' }))
+    expect(viewport()).toHaveAttribute('data-ghost', 'false')
+    await vi.waitFor(() => expect(cutting()).toHaveTextContent('Not planned: No matching stock article'))
+  })
+
+  // S10
+  it('shows a Brädor row in 3D', async () => {
+    loadMock.mockResolvedValueOnce(tracedModel())
+    render(<App />)
+    await choose('a.ifc')
+    await expectModel('model-a')
+    await userEvent.click(tab('Brädor'))
+    await userEvent.click(await screen.findByRole('button', { name: 'Show OID E in 3D' }))
+    expect(tab('3D-modell')).toHaveAttribute('aria-selected', 'true')
+    expect(viewport()).toHaveAttribute('data-selected', idOf('E'))
+    expect(viewport()).toHaveAttribute('data-ghost', 'true')
+  })
+
+  // S11 (a)
+  it('drops the trace when a new file is loaded', async () => {
+    await openCutting()
+    await userEvent.click(within(kapning()).getByRole('button', { name: 'Show OID C in 3D' }))
+    loadMock.mockResolvedValueOnce(tracedModel('model-b'))
+    await choose('b.ifc')
+    await expectModel('model-b')
+    expect(viewport()).toHaveAttribute('data-selected', '')
+    expect(viewport()).toHaveAttribute('data-related', '')
+    expect(viewport()).toHaveAttribute('data-ghost', 'false')
+  })
+
+  // S11 (c)
+  it('explains a failed plan in the info panel and keeps picking', async () => {
+    const dup = [makeBoard('1 Stud 45x95 C24', 1000, { oid: 'X' }), makeBoard('2 Stud 45x95 C24', 900, { oid: 'X' })]
+    const model = fakeModel('model-a', beamInfo, dup)
+    vi.mocked(model.getElementInfo).mockResolvedValue({ ...beamInfo, expressId: dup[0].expressId })
+    const child = new THREE.Object3D()
+    child.name = 'X'
+    child.userData.expressID = dup[0].expressId
+    model.root.add(child)
+    loadMock.mockResolvedValueOnce(model)
+    render(<App />)
+    await choose('a.ifc')
+    await expectModel('model-a')
+    await userEvent.click(screen.getByRole('button', { name: 'pick X' }))
+    await vi.waitFor(() => expect(cutting()).toHaveTextContent('The cutting plan could not be computed for this model.'))
+    expect(viewport()).toHaveAttribute('data-selected', String(dup[0].expressId))
+    expect(console.error).toHaveBeenCalledWith('Failed to compute the cutting plan', expect.any(Error))
   })
 })
