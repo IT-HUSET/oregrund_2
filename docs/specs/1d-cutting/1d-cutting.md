@@ -34,7 +34,7 @@
 | Input | `planCuts` takes a generic `CutDemand[]`. The app builds it from the Boards tab's `Board[]` (`IFCBEAM`, `IFCCOLUMN`, `IFCCOVERING`) with a pure adapter, `boardsToDemands`. A `components.xml` (`FRAMEPIECE`) adapter is still out of scope. |
 | Board → demand | `ifcTag` = `board.oid`, profile = the nominal `thickness` × `width` (normalised), grade = `board.grade`, `lengthMm` = `board.length`. The profile **suffix** (`_S`, `_sta_Z`) is ignored for matching and kept for display. Boards flagged `unparsed` or `no-length` are skipped with that reason and never reach `planCuts`. Siding (`IFCCOVERING`) is included like framing. |
 | UI | A third tab, **Cutting**, after **Boards**. It shows the waste report totals, the order list, the unplaced/skipped pieces, and one bar per purchased board, grouped by profile + grade. The plan is computed once per loaded model, the first time Boards or Cutting needs the board list. |
-| Siding without stock (2026-09-18) | Siding with no matching stock article (all `22x145_sta_Z C16` in the sample) stays in the tab and is listed as "Not planned". The stock table is not extended with siding profiles or C16. |
+| Model profiles in stock (2026-09-18, revised) | The stock table is extended with grade **C16** and the cross-sections the sample model uses that Svenskt Trä doesn't list: 12×45, 22×145 (siding), 45×182, 90×95, 90×145 and 90×220, all `hyvlat`. This supersedes the earlier decision to leave siding and C16 unplanned, which left 602 of 1,060 sample boards "Not planned". Glulam (`GL`) and decimal widths stay unplanned. |
 | Suffixes (2026-09-18) | Profile suffixes (`_S`, `_sta_Z`) are ignored when matching stock, so cuts with and without a suffix can share a board. |
 | 3D link (2026-09-18) | Clicking a cut to select its element in 3D is deferred to the traceability spec. |
 | Rendering | Plain DOM (`div`s with percentage widths, drawn to one common scale where 100 % = the longest purchased article), styled in `src/features/cutting-plan/CuttingPanel.css`. No canvas, SVG library or new dependency. |
@@ -119,11 +119,11 @@ Names can change during implementation. The shape (Tag on every cut, reasons on 
 
 | `typ` | Content | Source |
 |---|---|---|
-| `tvärsnitt` | 78 cross-sections: 20 `hyvlat` (22×70 to 95×95, including 45×45 to 45×245) and 58 `sågat` (12×48 to 150×150). Stored normalised, thickness ≤ width. | Svenskt Trä, *Virkessortiment* (the "Hyvlat virke" and "Sågat virke" tables) |
-| `hållfasthetsklass` | C14/T0, C18/T1, C24/T2, C30/T3, C35 (machine-graded only, no T class) | Svenskt Trä, *Kvalitet och sortiment* (SS-EN 338, SS 230120, SS-EN 14081-1) |
+| `tvärsnitt` | 84 cross-sections: 20 `hyvlat` (22×70 to 95×95, including 45×45 to 45×245) and 58 `sågat` (12×48 to 150×150) from Svenskt Trä, plus 6 `hyvlat` used by the Vertex model (12×45, 22×145, 45×182, 90×95, 90×145, 90×220). Stored normalised, thickness ≤ width. | Svenskt Trä, *Virkessortiment* (the "Hyvlat virke" and "Sågat virke" tables); the model rows cite `772_H811` |
+| `hållfasthetsklass` | C14/T0, C16, C18/T1, C24/T2, C30/T3, C35 (C16 and C35 have no T class) | Svenskt Trä, *Kvalitet och sortiment* (SS-EN 338, SS 230120, SS-EN 14081-1); C16 from SS-EN 338, as used in the model |
 | `längd` | 3000–5400 mm in 300 mm steps (9 lengths) | **Assumption** from `docs/Kravbild.docx` ("3,0 m till 5,4 m"). Svenskt Trä publishes no trade lengths. |
 
-The articles are the cross product **tvärsnitt × hållfasthetsklass × längd**, which gives 78 × 5 × 9 = 3510 articles. No cross-section appears as both `hyvlat` and `sågat`, so a demand's profile alone decides the finish, and demands don't carry a finish. The CSV is moved into `src/domain/1dcutting/` and loaded with Vite's `?raw` import (already typed through `vite/client`), so it stays the single source of truth. Changing the assortment means editing the CSV, not code.
+The articles are the cross product **tvärsnitt × hållfasthetsklass × längd**, which gives 84 × 6 × 9 = 4536 articles. No cross-section appears as both `hyvlat` and `sågat`, so a demand's profile alone decides the finish, and demands don't carry a finish. The CSV is moved into `src/domain/1dcutting/` and loaded with Vite's `?raw` import (already typed through `vite/client`), so it stays the single source of truth. Changing the assortment means editing the CSV, not code.
 
 
 ## Acceptance Scenarios
@@ -141,7 +141,7 @@ Unless a scenario says otherwise, stock is `SVENSKT_TRA_SORTIMENT`.
   - **Then** they are `{A, 2000, offset 0}` and `{C, 1500, offset 2000}`. On every board, each offset equals the sum of the preceding cut lengths.
 
 - [ ] **S03 [OC03] [TI02] Non-standard dimensions are unplaced, not guessed**
-  - **Given** a 45x182 C24 demand (the sample's "FD5 Opening header beam 45x182 C24" is like this)
+  - **Given** a 45x190 C24 demand (a cross-section that is not in the stock table)
   - **When** `planCuts` runs
   - **Then** the piece is in `unplaced` with reason `no-matching-stock`, no board is bought for it, and it isn't rounded up to 45x195.
 
@@ -178,7 +178,7 @@ Unless a scenario says otherwise, stock is `SVENSKT_TRA_SORTIMENT`.
 - [ ] **S10 [OC04] [TI01] The bundled stock table is complete and well-formed**
   - **Given** `SVENSKT_TRA_SORTIMENT`
   - **When** it is inspected
-  - **Then** it has 3510 articles with unique ids. Every profile is normalised and every length is a positive integer in mm. It contains `hyvlat` 45x95 C24 and `sågat` 47x100 C24 at 3000–5400 mm in 300 mm steps, and it contains no 45x182.
+  - **Then** it has 4536 articles with unique ids. Every profile is normalised and every length is a positive integer in mm. It contains `hyvlat` 45x95 C24, `sågat` 47x100 C24, `hyvlat` 45x182 C24 and 22x145 C16 at 3000–5400 mm in 300 mm steps, and it contains no 45x190.
 
 - [ ] **S11 [OC01] [TI01,TI02] Sorting classes are accepted as strength-class aliases**
   - **Given** a 45x95 demand with grade `T2`
@@ -210,7 +210,7 @@ Unless a scenario says otherwise, stock is `SVENSKT_TRA_SORTIMENT`.
   - **Then** it exposes (as its accessible name and a tooltip) `OID A · Stud · VÄGG-999 · 2000 mm · offset 0`. Every segment shows its OID as a visible label when it is wide enough, and its accessible name always carries the OID and length.
 
 - [ ] **S16 [OC08] [TI04,TI05] Unplaced and skipped pieces are listed with reasons**
-  - **Given** boards that include `45x182 C24` (no matching stock), `45x95 C24` 6000 mm (too long), a `22x145_sta_Z C16` siding board (no matching stock), and one unparsed board
+  - **Given** boards that include `45x190 C24` (no matching stock), `45x95 C24` 6000 mm (too long), a `42x270 GL` glulam beam (no matching stock), and one unparsed board
   - **When** the user opens **Cutting**
   - **Then** a "Not planned" section lists each of them with OID, name, profile and length, and a reason in plain words: "No matching stock article", "Longer than the longest stock length", "Name could not be read" or "Missing length". Its heading shows the count. The totals count them as unplaced and exclude them from required length.
 
@@ -286,9 +286,9 @@ Order list
   3000  [ B 2000          | D 1000   ]
   …
 
-Not planned (452)                                        [ show ▾ ]
+Not planned (57)                                         [ show ▾ ]
   OID     Name                            Profile        Length  Reason
-  589830  FD5 Opening header beam 45x182  45x182 C24     1180    No matching stock article
+  589830  U9 Glulam beam 42x270 GL        42x270 GL      1180    No matching stock article
   …
 ```
 
@@ -306,7 +306,7 @@ Not planned (452)                                        [ show ▾ ]
 - **Constraint**: Grade matching is exact after alias normalisation (T0→C14, T1→C18, T2→C24, T3→C30). A higher class is **not** used in place of a lower one, e.g. C30 stock for a C24 demand. That rule is the same as in `base_case.txt`.
 - **Avoid**: coupling the module to the viewer's `ElementInfo`. The only link to IFC is the `ifcTag` string.
 - **Critical**: `planCuts` throws on duplicate `ifcTag`s. An IFC export could in theory repeat a Tag, so the panel must catch this and show S17 (d) rather than crash the app. Check the sample for duplicate Tags during the manual validation.
-- **Gotcha**: In the sample, all siding is `22x145_sta_Z C16`. Neither 22×145 nor C16 is in the stock table, so every siding board lands in "Not planned" with "No matching stock article". This is intended (see Decisions), and the "Not planned" section groups them clearly rather than hiding them.
+- **Gotcha**: In the sample, all siding is `22x145_sta_Z C16`, and many framing pieces are C16 or use sizes Svenskt Trä doesn't list (45×182, 12×45, 90×…). Those rows were added to the stock table for this reason (see Decisions). With them, 1,003 of the 1,060 sample boards are planned; 50 are longer than 5,400 mm (see Open Question 1) and 7 are glulam or decimal widths.
 - **Gotcha**: Profiles with decimals (`9.762523x95`) and glulam (`GL`) never match stock and are also listed as not planned.
 - **Constraint**: Lengths display as whole mm and totals in metres with one decimal, as in the Boards tab. Use the same formatting helpers (move them to `src/components/` or a shared module if both panels need them, instead of copying).
 - **Avoid**: unmounting the 3D viewport when **Cutting** is shown. It stays hidden, as for **Boards**.
@@ -347,7 +347,7 @@ Not planned (452)                                        [ show ▾ ]
 
 1. **Trade lengths.** Svenskt Trä publishes no lengths, so 3000–5400 mm in 300 mm steps is taken from Kravbild. Should the supplier's actual lengths (for example 2400–6000 mm) replace it? That only means editing the `längd` rows.
 2. **Availability per class.** In practice C18/C30 are rarely stocked and C14 mostly in small dimensions (Svenskt Trä). Should the table restrict classes per cross-section instead of using the full cross product?
-3. **Non-standard profiles** such as 45×182. Should a later spec allow ripping them from a wider standard profile, or do they stay unplaced and get bought as special orders?
+3. **Non-standard profiles** such as 45×182 are now stock rows of their own (bought as special orders). Should a later spec rip them from a wider standard profile (45×195) instead?
 4. **Baseline function.** Should the domain also provide the one-board-per-piece baseline, so that the waste report can show % saving (Kravbild §5)? It's cheap to add, but it isn't in this spec.
 
 

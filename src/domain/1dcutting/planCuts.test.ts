@@ -57,7 +57,7 @@ describe('planCuts', () => {
 
   // S03
   it('leaves non-standard dimensions unplaced instead of rounding them up', () => {
-    const plan = planCuts([demand('H', '45x182', 'C24', 1200)], SVENSKT_TRA_SORTIMENT)
+    const plan = planCuts([demand('H', '45x190', 'C24', 1200)], SVENSKT_TRA_SORTIMENT)
     expect(plan.boards).toEqual([])
     expect(unplaced(plan)).toEqual(['H no-matching-stock'])
   })
@@ -102,7 +102,7 @@ describe('planCuts', () => {
 
   // S08
   it('is deterministic regardless of input order', () => {
-    const input = [...S01, demand('E', '45x70', 'C24', 800), demand('F', '45x182', 'C24', 800)]
+    const input = [...S01, demand('E', '45x70', 'C24', 800), demand('F', '45x190', 'C24', 800)]
     expect(planCuts([...input].reverse(), SVENSKT_TRA_SORTIMENT)).toEqual(planCuts(input, SVENSKT_TRA_SORTIMENT))
   })
 
@@ -126,7 +126,7 @@ describe('planCuts', () => {
   // S09
   it('keeps its invariants on a large random input', () => {
     const random = mulberry32(772)
-    const profiles = ['45x95', '45x120', '45x145', '45x170', '45x195', '45x220', '45x70', '22x95', '45x182']
+    const profiles = ['45x95', '45x120', '45x145', '45x170', '45x195', '45x220', '45x70', '22x95', '45x190']
     const grades = ['C24', 'C14', 'T2']
     const demands = Array.from({ length: 750 }, (_, i) => {
       const length = random() < 0.02 ? 5500 + random() * 1000 : 200 + random() * 5200
