@@ -371,7 +371,7 @@ Not planned (57)                                         [ show ▾ ]
 - [x] **TI06** `App.tsx` adds the **Cutting** tab and panel (`id="panel-cutting"`, kept mounted and `hidden` like Boards). It requests the board list the first time either Boards or Cutting is shown, and passes the same result to both panels.
   - **Verify**: `App.test.tsx` covers S18: three tabs in order, keyboard navigation wraps over three, `getBoards` is called once when opening Cutting then Boards then Cutting, and a second file shows the second model's plan. The existing tab tests still pass.
 
-- [ ] **TI07** Kerf: add `DEFAULT_KERF_MM` and `PlanOptions` to `cutting.ts`, apply the Kerf Model in `planCuts` (fit rule in FFD and downsizing, offsets, per-board `kerfMm`/`offcutMm`, totals, `kerfPerCutMm`, option validation), and draw kerf gaps and the kerf total in `CuttingPanel`. Update the `cut-traceability` numbers that depend on S01 (offset of `C`, the `B`/`D` board's article and waste).
+- [x] **TI07** Kerf: add `DEFAULT_KERF_MM` and `PlanOptions` to `cutting.ts`, apply the Kerf Model in `planCuts` (fit rule in FFD and downsizing, offsets, per-board `kerfMm`/`offcutMm`, totals, `kerfPerCutMm`, option validation), and draw kerf gaps and the kerf total in `CuttingPanel`. Update the `cut-traceability` numbers that depend on S01 (offset of `C`, the `B`/`D` board's article and waste).
   - **Verify**: S01, S02, S09, S14, S19 and S20 pass. The other `planCuts` tests pass unchanged with `{ kerfMm: 0 }`. The waste report total equals the sum of the bars' waste labels.
 
 ### Testing Strategy

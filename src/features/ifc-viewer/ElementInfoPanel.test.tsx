@@ -23,7 +23,7 @@ const location: CutLocation = {
   article: { id: '45x95-C24-3600', finish: 'hyvlat', profile: { thicknessMm: 45, widthMm: 95 }, grade: 'C24', lengthMm: 3600 },
   cutIndex: 1,
   cutCount: 2,
-  offsetMm: 2000,
+  offsetMm: 2004.5,
   lengthMm: 1500,
   wasteMm: 100,
   siblings: ['A'],
@@ -46,7 +46,7 @@ describe('ElementInfoPanel cutting section', () => {
       />,
     )
     expect(cutting()).toHaveTextContent('45x95 C24 · 3,600 mm · board 1')
-    expect(cutting()).toHaveTextContent('Cut 2 of 2 · offset 2,000 mm · 1,500 mm')
+    expect(cutting()).toHaveTextContent('Cut 2 of 2 · offset 2,005 mm · 1,500 mm')
     expect(cutting()).toHaveTextContent('Waste on this board: 100 mm')
 
     await userEvent.click(within(cutting()).getByRole('button', { name: 'Select OID A in 3D' }))

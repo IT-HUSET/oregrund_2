@@ -163,14 +163,9 @@
   align-items: center;
   min-width: 0;
   overflow: hidden;
-  border-right: 1px solid var(--surface);
   background: var(--cut-a);
   color: var(--cut-text);
   font-size: 11px;
-}
-
-.cutting__cut:last-child {
-  border-right: 0;
 }
 
 .cutting__cut--b {
@@ -229,6 +224,13 @@
   overflow: hidden;
   white-space: nowrap;
   text-overflow: clip;
+}
+
+/* A saw cut: too thin to show to scale, so it is at least 1 px wide. */
+.cutting__kerf {
+  flex: none;
+  min-width: 1px;
+  background: var(--kerf);
 }
 
 .cutting__waste {

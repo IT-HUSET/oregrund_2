@@ -532,12 +532,12 @@ describe('App cut traceability', () => {
   // S04
   it('shows a whole board and a whole order line in 3D', async () => {
     await openCutting()
-    await userEvent.click(within(kapning()).getByRole('button', { name: 'Show 45x95 C24 board 2: 3,000 mm in 3D' }))
+    await userEvent.click(within(kapning()).getByRole('button', { name: 'Show 45x95 C24 board 2: 3,300 mm in 3D' }))
     expect(viewport()).toHaveAttribute('data-selected', '')
     expect(viewport()).toHaveAttribute('data-related', `${idOf('B')},${idOf('D')}`)
     expect(viewport()).toHaveAttribute('data-ghost', 'true')
     expect(screen.getByRole('heading', { name: '2 pieces highlighted' })).toBeInTheDocument()
-    expect(screen.getByText('45x95 C24 board 2: 3,000 mm')).toBeInTheDocument()
+    expect(screen.getByText('45x95 C24 board 2: 3,300 mm')).toBeInTheDocument()
 
     await userEvent.click(tab('Kapning'))
     await userEvent.click(within(kapning()).getByRole('button', { name: 'Show 45x95 C24 · 3,600 mm in 3D' }))
@@ -554,7 +554,7 @@ describe('App cut traceability', () => {
     await userEvent.click(screen.getByRole('button', { name: 'pick C' }))
 
     await vi.waitFor(() => expect(cutting()).toHaveTextContent('45x95 C24 · 3,600 mm · board 1'))
-    expect(cutting()).toHaveTextContent('Cut 2 of 2 · offset 2,000 mm · 1,500 mm')
+    expect(cutting()).toHaveTextContent('Cut 2 of 2 · offset 2,005 mm · 1,500 mm')
     expect(viewport()).toHaveAttribute('data-ghost', 'false')
 
     await userEvent.click(within(cutting()).getByRole('button', { name: 'Select OID A in 3D' }))

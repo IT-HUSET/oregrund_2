@@ -38,10 +38,15 @@ export interface PlannedCut {
 
 export interface BoardPlan {
   article: StockArticle
-  // In cutting order; offsets start at 0 (kerf 0).
+  // In cutting order; offset = previous offset + previous length + kerf.
   cuts: PlannedCut[]
+  // Sum of cut lengths (pieces only, no kerf).
   usedMm: number
-  // article.lengthMm - usedMm
+  // Material lost to saw cuts on this board (see the spec's Kerf Model).
+  kerfMm: number
+  // What is left after the last saw cut.
+  offcutMm: number
+  // kerfMm + offcutMm = article.lengthMm - usedMm
   wasteMm: number
 }
 
@@ -62,6 +67,9 @@ export interface CuttingTotals {
   unplacedPieces: number
   requiredMm: number
   purchasedMm: number
+  kerfMm: number
+  offcutMm: number
+  // kerfMm + offcutMm = purchasedMm - requiredMm
   wasteMm: number
   // wasteMm / purchasedMm * 100, 0 when nothing is purchased.
   wastePct: number
@@ -73,6 +81,16 @@ export interface CuttingPlan {
   orderLines: OrderLine[]
   unplaced: UnplacedDemand[]
   totals: CuttingTotals
+  // The kerf the plan was made with, for display.
+  kerfPerCutMm: number
+}
+
+// Material removed by one saw cut (saw blade width).
+export const DEFAULT_KERF_MM = 4.5
+
+export interface PlanOptions {
+  // Defaults to DEFAULT_KERF_MM; must be finite and >= 0.
+  kerfMm?: number
 }
 
 export function normaliseProfile(a: number, b: number): Profile {

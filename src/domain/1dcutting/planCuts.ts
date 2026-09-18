@@ -1,10 +1,12 @@
 import {
+  DEFAULT_KERF_MM,
   normaliseGrade,
   normaliseProfile,
   type BoardPlan,
   type CutDemand,
   type CuttingPlan,
   type OrderLine,
+  type PlanOptions,
   type StockArticle,
   type UnplacedDemand,
 } from './cutting.ts'
@@ -26,9 +28,17 @@ interface Candidate {
 
 // Plans which stock boards to buy and how to cut them: per (profile, grade) group, First Fit
 // Decreasing for every stock length as the opening length, each board downsized to the shortest
-// article that fits, keeping the candidate with the least waste. Deterministic; does not mutate
-// its inputs. Throws when two demands share an ifcTag.
-export function planCuts(demands: readonly CutDemand[], stock: readonly StockArticle[]): CuttingPlan {
+// article that fits, keeping the candidate with the least waste. Every saw cut removes `kerfMm`
+// (see the spec's Kerf Model). Deterministic; does not mutate its inputs. Throws when two demands
+// share an ifcTag or the kerf is not a finite number >= 0.
+export function planCuts(
+  demands: readonly CutDemand[],
+  stock: readonly StockArticle[],
+  options: PlanOptions = {},
+): CuttingPlan {
+  const kerf = options.kerfMm ?? DEFAULT_KERF_MM
+  if (!(Number.isFinite(kerf) && kerf >= 0)) throw new Error(`Invalid kerf ${kerf} mm: must be a finite number >= 0`)
+
   const seen = new Set<string>()
   for (const d of demands) {
     if (seen.has(d.ifcTag)) throw new Error(`Duplicate ifcTag '${d.ifcTag}' in cut demands`)
@@ -76,10 +86,10 @@ export function planCuts(demands: readonly CutDemand[], stock: readonly StockArt
     fitting.sort((a, b) => b.lengthMm - a.lengthMm || compareTags(a.ifcTag, b.ifcTag))
     let best: Candidate | null = null
     for (const { lengthMm } of articles) {
-      const candidate = firstFitDecreasing(fitting, articles, lengthMm)
+      const candidate = firstFitDecreasing(fitting, articles, lengthMm, kerf)
       if (!best || isBetter(candidate, best)) best = candidate
     }
-    for (const board of best!.boards) boards.push(toBoardPlan(board.article, board.pieces, board.used))
+    for (const board of best!.boards) boards.push(toBoardPlan(board.article, board.pieces, board.used, kerf))
   }
 
   boards.sort(compareBoards)
@@ -100,7 +110,9 @@ export function planCuts(demands: readonly CutDemand[], stock: readonly StockArt
 
   const requiredMm = sum(boards.map((b) => b.usedMm))
   const purchasedMm = sum(boards.map((b) => b.article.lengthMm))
-  const wasteMm = sum(boards.map((b) => b.wasteMm))
+  const kerfMm = sum(boards.map((b) => b.kerfMm))
+  const offcutMm = sum(boards.map((b) => b.offcutMm))
+  const wasteMm = kerfMm + offcutMm
   return {
     boards,
     orderLines,
@@ -110,18 +122,26 @@ export function planCuts(demands: readonly CutDemand[], stock: readonly StockArt
       unplacedPieces: unplaced.length,
       requiredMm,
       purchasedMm,
+      kerfMm,
+      offcutMm,
       wasteMm,
       wastePct: purchasedMm > 0 ? (wasteMm / purchasedMm) * 100 : 0,
     },
+    kerfPerCutMm: kerf,
   }
 }
 
 // `pieces` is sorted by length descending. A piece longer than the opening length opens a board
-// of the shortest article that fits it.
-function firstFitDecreasing(pieces: readonly CutDemand[], articles: readonly StockArticle[], openingLength: number): Candidate {
+// of the shortest article that fits it. Adding a piece to a board adds one kerf before it.
+function firstFitDecreasing(
+  pieces: readonly CutDemand[],
+  articles: readonly StockArticle[],
+  openingLength: number,
+  kerf: number,
+): Candidate {
   const open: OpenBoard[] = []
   for (const piece of pieces) {
-    const board = open.find((b) => b.used + piece.lengthMm <= b.capacity + EPS)
+    const board = open.find((b) => b.used + piece.lengthMm + b.pieces.length * kerf <= b.capacity + EPS)
     if (board) {
       board.used += piece.lengthMm
       board.pieces.push(piece)
@@ -130,12 +150,17 @@ function firstFitDecreasing(pieces: readonly CutDemand[], articles: readonly Sto
       open.push({ capacity, used: piece.lengthMm, pieces: [piece] })
     }
   }
-  const boards = open.map((b) => ({ article: shortestFitting(articles, b.used), pieces: b.pieces, used: b.used }))
+  const boards = open.map((b) => ({
+    article: shortestFitting(articles, b.used + (b.pieces.length - 1) * kerf),
+    pieces: b.pieces,
+    used: b.used,
+  }))
   return { boards, waste: sum(boards.map((b) => b.article.lengthMm - b.used)), openingLength }
 }
 
-function shortestFitting(articles: readonly StockArticle[], usedMm: number): StockArticle {
-  return articles.find((a) => usedMm <= a.lengthMm + EPS)!
+// `neededMm` is the pieces plus the kerf between them.
+function shortestFitting(articles: readonly StockArticle[], neededMm: number): StockArticle {
+  return articles.find((a) => neededMm <= a.lengthMm + EPS)!
 }
 
 // Least waste, then fewest boards, then the smallest opening length.
@@ -145,14 +170,19 @@ function isBetter(a: Candidate, b: Candidate): boolean {
   return a.openingLength < b.openingLength
 }
 
-function toBoardPlan(article: StockArticle, pieces: readonly CutDemand[], used: number): BoardPlan {
+// One saw cut between neighbouring pieces, plus a last cut that frees the last piece from the
+// offcut when anything is left; that cut removes at most what is left.
+function toBoardPlan(article: StockArticle, pieces: readonly CutDemand[], used: number, kerf: number): BoardPlan {
   let offsetMm = 0
   const cuts = pieces.map((piece) => {
     const cut = { ifcTag: piece.ifcTag, lengthMm: piece.lengthMm, offsetMm }
-    offsetMm += piece.lengthMm
+    offsetMm += piece.lengthMm + kerf
     return cut
   })
-  return { article, cuts, usedMm: used, wasteMm: Math.max(0, article.lengthMm - used) }
+  const between = (pieces.length - 1) * kerf
+  const rest = Math.max(0, article.lengthMm - used - between)
+  const lastCut = Math.min(kerf, rest)
+  return { article, cuts, usedMm: used, kerfMm: between + lastCut, offcutMm: rest - lastCut, wasteMm: between + rest }
 }
 
 function groupKey(item: { profile: { thicknessMm: number; widthMm: number }; grade: string }): string {

@@ -24,6 +24,8 @@ const summary = (plan: CuttingPlan) =>
   plan.boards.map((b) => `${b.article.id}: ${b.cuts.map((c) => `${c.ifcTag}@${c.offsetMm}`).join(' ')}`)
 const unplaced = (plan: CuttingPlan) => plan.unplaced.map((u) => `${u.demand.ifcTag} ${u.reason}`)
 
+const NO_KERF = { kerfMm: 0 }
+
 const S01 = [
   demand('A', '45x95', 'C24', 2000),
   demand('B', '45x95', 'C24', 2000),
@@ -35,29 +37,66 @@ describe('planCuts', () => {
   // S01 + S02
   it('shares boards between pieces and picks the least-waste plan', () => {
     const plan = planCuts(S01, SVENSKT_TRA_SORTIMENT)
-    expect(summary(plan)).toEqual(['45x95-C24-3600: A@0 C@2000', '45x95-C24-3000: B@0 D@2000'])
-    expect(plan.boards.map((b) => b.wasteMm)).toEqual([100, 0])
+    expect(summary(plan)).toEqual(['45x95-C24-3600: A@0 C@2004.5', '45x95-C24-3300: B@0 D@2004.5'])
+    expect(plan.boards.map((b) => [b.kerfMm, b.offcutMm, b.wasteMm])).toEqual([
+      [9, 91, 100],
+      [9, 291, 300],
+    ])
     expect(plan.totals).toEqual({
       placedPieces: 4,
       unplacedPieces: 0,
       requiredMm: 6500,
-      purchasedMm: 6600,
-      wasteMm: 100,
-      wastePct: expect.closeTo(1.515, 2),
+      purchasedMm: 6900,
+      kerfMm: 18,
+      offcutMm: 382,
+      wasteMm: 400,
+      wastePct: expect.closeTo(5.797, 2),
     })
+    expect(plan.kerfPerCutMm).toBe(4.5)
     expect(plan.orderLines.map((l) => `${l.quantity} × ${l.article.id}`)).toEqual([
       '1 × 45x95-C24-3600',
-      '1 × 45x95-C24-3000',
+      '1 × 45x95-C24-3300',
     ])
     expect(plan.boards[0].cuts).toEqual([
       { ifcTag: 'A', lengthMm: 2000, offsetMm: 0 },
-      { ifcTag: 'C', lengthMm: 1500, offsetMm: 2000 },
+      { ifcTag: 'C', lengthMm: 1500, offsetMm: 2004.5 },
     ])
+  })
+
+  // S01 (kerf-free)
+  it('gives the kerf-free plan with kerf 0', () => {
+    const plan = planCuts(S01, SVENSKT_TRA_SORTIMENT, NO_KERF)
+    expect(summary(plan)).toEqual(['45x95-C24-3600: A@0 C@2000', '45x95-C24-3000: B@0 D@2000'])
+    expect(plan.boards.map((b) => b.wasteMm)).toEqual([100, 0])
+    expect(plan.totals.purchasedMm).toBe(6600)
+  })
+
+  // S19
+  it('handles kerf edge cases', () => {
+    const c24 = stock('45x95', 'C24', [3000, 3300, 3600, 3900, 4200, 4500, 4800, 5100, 5400])
+    const board = (plan: CuttingPlan) =>
+      plan.boards.map((b) => ({ length: b.article.lengthMm, kerf: b.kerfMm, offcut: b.offcutMm, offsets: b.cuts.map((c) => c.offsetMm) }))
+
+    expect(board(planCuts([demand('a', '45x95', 'C24', 5400)], c24))).toEqual([{ length: 5400, kerf: 0, offcut: 0, offsets: [0] }])
+    expect(board(planCuts([demand('b', '45x95', 'C24', 2998)], c24))).toEqual([{ length: 3000, kerf: 2, offcut: 0, offsets: [0] }])
+    expect(planCuts([demand('c1', '45x95', 'C24', 2700), demand('c2', '45x95', 'C24', 2700)], c24).boards).toHaveLength(2)
+    expect(board(planCuts([demand('d1', '45x95', 'C24', 1497.75), demand('d2', '45x95', 'C24', 1497.75)], c24))).toEqual([
+      { length: 3000, kerf: 4.5, offcut: 0, offsets: [0, 1502.25] },
+    ])
+  })
+
+  // S20
+  it('validates the kerf option', () => {
+    for (const kerfMm of [-1, NaN, Infinity]) {
+      expect(() => planCuts(S01, SVENSKT_TRA_SORTIMENT, { kerfMm })).toThrow(String(kerfMm))
+    }
+    const plan = planCuts(S01, SVENSKT_TRA_SORTIMENT, NO_KERF)
+    expect(plan.boards.every((b) => b.kerfMm === 0 && b.offcutMm === b.wasteMm)).toBe(true)
   })
 
   // S03
   it('leaves non-standard dimensions unplaced instead of rounding them up', () => {
-    const plan = planCuts([demand('H', '45x190', 'C24', 1200)], SVENSKT_TRA_SORTIMENT)
+    const plan = planCuts([demand('H', '45x190', 'C24', 1200)], SVENSKT_TRA_SORTIMENT, NO_KERF)
     expect(plan.boards).toEqual([])
     expect(unplaced(plan)).toEqual(['H no-matching-stock'])
   })
@@ -67,6 +106,7 @@ describe('planCuts', () => {
     const plan = planCuts(
       [demand('L', '45x95', 'C24', 6000), demand('S', '45x95', 'C24', 1000)],
       stock('45x95', 'C24', [3000, 5400]),
+      NO_KERF,
     )
     expect(unplaced(plan)).toEqual(['L too-long'])
     expect(summary(plan)).toEqual(['45x95-C24-3000: S@0'])
@@ -77,6 +117,7 @@ describe('planCuts', () => {
     const plan = planCuts(
       [demand('a', '45x95', 'C24', 1000), demand('b', '45x95', 'C14', 1000), demand('c', '45x70', 'C24', 1000)],
       [...stock('45x95', 'C24', [3000]), ...stock('45x70', 'C24', [3000])],
+      NO_KERF,
     )
     expect(summary(plan)).toEqual(['45x70-C24-3000: c@0', '45x95-C24-3000: a@0'])
     expect(unplaced(plan)).toEqual(['b no-matching-stock'])
@@ -84,7 +125,7 @@ describe('planCuts', () => {
 
   // S06
   it('normalises the profile orientation', () => {
-    const plan = planCuts([demand('R', '95x45', 'C24', 1000)], SVENSKT_TRA_SORTIMENT)
+    const plan = planCuts([demand('R', '95x45', 'C24', 1000)], SVENSKT_TRA_SORTIMENT, NO_KERF)
     expect(summary(plan)).toEqual(['45x95-C24-3000: R@0'])
   })
 
@@ -93,17 +134,18 @@ describe('planCuts', () => {
     const plan = planCuts(
       [demand('z', '45x95', 'C24', 0), demand('n', '45x95', 'C24', -5), demand('x', '45x95', 'C24', NaN)],
       SVENSKT_TRA_SORTIMENT,
+      NO_KERF,
     )
     expect(unplaced(plan)).toEqual(['n invalid-length', 'x invalid-length', 'z invalid-length'])
     expect(() =>
-      planCuts([demand('dup', '45x95', 'C24', 1000), demand('dup', '45x95', 'C24', 900)], SVENSKT_TRA_SORTIMENT),
+      planCuts([demand('dup', '45x95', 'C24', 1000), demand('dup', '45x95', 'C24', 900)], SVENSKT_TRA_SORTIMENT, NO_KERF),
     ).toThrow(/dup/)
   })
 
   // S08
   it('is deterministic regardless of input order', () => {
     const input = [...S01, demand('E', '45x70', 'C24', 800), demand('F', '45x190', 'C24', 800)]
-    expect(planCuts([...input].reverse(), SVENSKT_TRA_SORTIMENT)).toEqual(planCuts(input, SVENSKT_TRA_SORTIMENT))
+    expect(planCuts([...input].reverse(), SVENSKT_TRA_SORTIMENT, NO_KERF)).toEqual(planCuts(input, SVENSKT_TRA_SORTIMENT, NO_KERF))
   })
 
   // S11
@@ -111,6 +153,7 @@ describe('planCuts', () => {
     const plan = planCuts(
       [demand('t', '45x95', 'T2', 1000), demand('c', '45x95', 'C24', 1000), demand('u', '45x95', 'X9', 1000)],
       SVENSKT_TRA_SORTIMENT,
+      NO_KERF,
     )
     expect(summary(plan)).toEqual(['45x95-C24-3000: c@0 t@1000'])
     expect(unplaced(plan)).toEqual(['u no-matching-stock'])
@@ -119,7 +162,7 @@ describe('planCuts', () => {
   it('does not mutate its inputs', () => {
     const input = Object.freeze(S01.map((d) => Object.freeze({ ...d, profile: Object.freeze({ ...d.profile }) })))
     const before = JSON.stringify(input)
-    planCuts(input, Object.freeze([...SVENSKT_TRA_SORTIMENT]))
+    planCuts(input, Object.freeze([...SVENSKT_TRA_SORTIMENT]), NO_KERF)
     expect(JSON.stringify(input)).toBe(before)
   })
 
@@ -144,7 +187,13 @@ describe('planCuts', () => {
 
     const byTag = new Map(demands.map((d) => [d.ifcTag, d]))
     for (const board of plan.boards) {
-      expect(board.usedMm).toBeLessThanOrEqual(board.article.lengthMm + 1e-6)
+      const betweenCuts = (board.cuts.length - 1) * plan.kerfPerCutMm
+      expect(board.usedMm + betweenCuts).toBeLessThanOrEqual(board.article.lengthMm + 1e-6)
+      expect(board.usedMm + board.kerfMm + board.offcutMm).toBeCloseTo(board.article.lengthMm)
+      board.cuts.slice(1).forEach((cut, i) => {
+        const previous = board.cuts[i]
+        expect(cut.offsetMm).toBeCloseTo(previous.offsetMm + previous.lengthMm + plan.kerfPerCutMm)
+      })
       for (const cut of board.cuts) {
         const d = byTag.get(cut.ifcTag)!
         expect(d.profile).toEqual(board.article.profile)
@@ -157,11 +206,14 @@ describe('planCuts', () => {
           a.grade === board.article.grade &&
           a.lengthMm < board.article.lengthMm,
       )
-      expect(shorter.every((a) => a.lengthMm < board.usedMm)).toBe(true)
+      expect(shorter.every((a) => a.lengthMm < board.usedMm + betweenCuts - 1e-6)).toBe(true)
     }
     const sum = (values: number[]) => values.reduce((a, b) => a + b, 0)
     expect(plan.totals.purchasedMm).toBeCloseTo(sum(plan.boards.map((b) => b.article.lengthMm)))
     expect(plan.totals.wasteMm).toBeCloseTo(sum(plan.boards.map((b) => b.wasteMm)))
+    expect(plan.totals.kerfMm).toBeCloseTo(sum(plan.boards.map((b) => b.kerfMm)))
+    expect(plan.totals.offcutMm).toBeCloseTo(sum(plan.boards.map((b) => b.offcutMm)))
+    expect(plan.totals.wasteMm).toBeCloseTo(plan.totals.kerfMm + plan.totals.offcutMm)
     expect(plan.totals.requiredMm).toBeCloseTo(sum(plan.boards.map((b) => b.usedMm)))
     expect(plan.totals.placedPieces + plan.totals.unplacedPieces).toBe(750)
   })

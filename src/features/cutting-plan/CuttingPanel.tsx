@@ -87,6 +87,10 @@ function CuttingPlanView({ boards, result, onShowInModel, cutTarget }: CuttingPl
             label="Waste"
             value={`${formatMetres(totals.wasteMm)} (${totals.wastePct.toLocaleString('en-US', { maximumFractionDigits: 1 })} %)`}
           />
+          <Stat
+            label="Saw kerf"
+            value={`incl. ${formatKerf(totals.kerfMm)} (${plan.kerfPerCutMm.toLocaleString('en-US')} mm per cut)`}
+          />
         </dl>
       </section>
 
@@ -127,6 +131,7 @@ function CuttingPlanView({ boards, result, onShowInModel, cutTarget }: CuttingPl
       {plan.boards.length > 0 && (
         <CutBoards
           boards={plan.boards}
+          kerfMm={plan.kerfPerCutMm}
           boardByOid={boardByOid}
           onShowInModel={onShowInModel}
           targetOid={cutTarget?.oid ?? null}
@@ -186,6 +191,8 @@ function OrderRow({ line: { article, quantity }, plan, onShowInModel }: OrderRow
 
 interface CutBoardsProps {
   boards: readonly BoardPlan[]
+  // Kerf per saw cut.
+  kerfMm: number
   boardByOid: ReadonlyMap<string, Board>
   onShowInModel: ShowInModel
   targetOid: string | null
@@ -193,7 +200,7 @@ interface CutBoardsProps {
 
 // One bar per purchased board, grouped by profile + grade. All bars share one scale:
 // 100 % = the longest purchased article.
-function CutBoards({ boards, boardByOid, onShowInModel, targetOid }: CutBoardsProps) {
+function CutBoards({ boards, kerfMm, boardByOid, onShowInModel, targetOid }: CutBoardsProps) {
   const scaleMm = Math.max(...boards.map((b) => b.article.lengthMm))
   const groups = groupBoards(boards)
 
@@ -213,6 +220,7 @@ function CutBoards({ boards, boardByOid, onShowInModel, targetOid }: CutBoardsPr
               <CutBoard
                 key={board.cuts[0].ifcTag}
                 board={board}
+                kerfMm={kerfMm}
                 label={`${group.label} board ${i + 1}: ${formatMm(board.article.lengthMm)} mm`}
                 scaleMm={scaleMm}
                 boardByOid={boardByOid}
@@ -229,6 +237,7 @@ function CutBoards({ boards, boardByOid, onShowInModel, targetOid }: CutBoardsPr
 
 interface CutBoardProps {
   board: BoardPlan
+  kerfMm: number
   label: string
   scaleMm: number
   boardByOid: ReadonlyMap<string, Board>
@@ -236,10 +245,23 @@ interface CutBoardProps {
   targetOid: string | null
 }
 
-function CutBoard({ board, label, scaleMm, boardByOid, onShowInModel, targetOid }: CutBoardProps) {
+function CutBoard({ board, kerfMm, label, scaleMm, boardByOid, onShowInModel, targetOid }: CutBoardProps) {
   const { article, cuts } = board
   const waste = Math.round(board.wasteMm)
-  const wasteLabel = `Waste ${formatMm(board.wasteMm)} mm`
+  const offcut = Math.round(board.offcutMm)
+  const offcutDetail = `offcut ${formatMm(board.offcutMm)} mm · kerf ${formatMm(board.kerfMm)} mm`
+  const wasteLabel = `Waste ${formatMm(board.wasteMm)} mm: ${offcutDetail}`
+  // The saw cut that frees the last piece from the offcut; it can be thinner than a full kerf.
+  const lastKerfMm = board.kerfMm - (cuts.length - 1) * kerfMm
+  const kerfGap = (key: string, mm: number) =>
+    mm > 0 && (
+      <li
+        key={key}
+        className="cutting__kerf"
+        style={{ width: percent(mm, article.lengthMm) }}
+        aria-hidden="true"
+      />
+    )
   const oids = cuts.map((c) => c.ifcTag)
   const current = targetOid !== null && oids.includes(targetOid)
   const allInModel = oids.every((oid) => boardByOid.has(oid))
@@ -266,7 +288,8 @@ function CutBoard({ board, label, scaleMm, boardByOid, onShowInModel, targetOid 
                 {cut.ifcTag}
               </span>
             )
-            return (
+            return [
+              i > 0 && kerfGap(`kerf-${cut.ifcTag}`, kerfMm),
               <li
                 key={cut.ifcTag}
                 data-oid={cut.ifcTag}
@@ -291,15 +314,16 @@ function CutBoard({ board, label, scaleMm, boardByOid, onShowInModel, targetOid 
                 ) : (
                   text
                 )}
-              </li>
-            )
+              </li>,
+            ]
           })}
-          {waste > 0 && (
+          {kerfGap('kerf-last', lastKerfMm > 1e-6 ? lastKerfMm : 0)}
+          {offcut > 0 && (
             <li
               className="cutting__cut cutting__waste"
-              style={{ width: percent(board.wasteMm, article.lengthMm) }}
+              style={{ width: percent(board.offcutMm, article.lengthMm) }}
               aria-label={wasteLabel}
-              title={wasteLabel}
+              title={offcutDetail}
             >
               <span className="cutting__cut-label" aria-hidden="true">
                 waste
@@ -384,6 +408,11 @@ function NotPlanned({ plan, skipped, boardByOid }: NotPlannedProps) {
       )}
     </section>
   )
+}
+
+// Whole mm under 1 m, metres with one decimal from 1 m up.
+function formatKerf(mm: number): string {
+  return mm < 1000 ? `${formatMm(mm)} mm` : formatMetres(mm)
 }
 
 function percent(part: number, whole: number): string {

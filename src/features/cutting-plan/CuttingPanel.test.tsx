@@ -21,6 +21,7 @@ const stat = (label: string) => screen.getByText(label, { selector: 'dt' }).next
 const bars = () => screen.getAllByRole('list', { name: /board \d+:/ })
 const segments = (bar: HTMLElement) => within(bar).getAllByRole('listitem')
 const widthOf = (el: HTMLElement) => parseFloat(el.style.width)
+const kerfGaps = (bar: HTMLElement) => [...bar.querySelectorAll<HTMLElement>('.cutting__kerf')]
 
 beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
@@ -33,30 +34,47 @@ describe('CuttingPanel', () => {
 
     expect(stat('Pieces placed')).toBe('4')
     expect(stat('Boards to buy')).toBe('2')
-    expect(stat('Purchased')).toBe('6.6 m')
+    expect(stat('Purchased')).toBe('6.9 m')
     expect(stat('Required')).toBe('6.5 m')
-    expect(stat('Waste')).toBe('0.1 m (1.5 %)')
+    expect(stat('Waste')).toBe('0.4 m (5.8 %)')
+    expect(stat('Saw kerf')).toBe('incl. 18 mm (4.5 mm per cut)')
     expect(stat('Not planned')).toBe('0')
 
     const order = within(screen.getByRole('table', { name: 'Order list' })).getAllByRole('row').slice(1)
     expect(order.map((row) => within(row).getAllByRole('cell').map((c) => c.textContent))).toEqual([
       ['45x95', 'C24', 'hyvlat', '3,600', '1', '3.6 m'],
-      ['45x95', 'C24', 'hyvlat', '3,000', '1', '3.0 m'],
+      ['45x95', 'C24', 'hyvlat', '3,300', '1', '3.3 m'],
     ])
 
     expect(screen.getByRole('heading', { level: 3, name: '45x95 C24' })).toBeInTheDocument()
     const [long, short] = bars()
     expect(long).toHaveAccessibleName('45x95 C24 board 1: 3,600 mm')
     expect(segments(long).map((s) => s.textContent)).toEqual(['A', 'C', 'waste'])
-    expect(segments(long)[2]).toHaveAccessibleName('Waste 100 mm')
-    expect(segments(short).map((s) => s.textContent)).toEqual(['B', 'D'])
+    expect(segments(long)[2]).toHaveAccessibleName('Waste 100 mm: offcut 91 mm · kerf 9 mm')
+    expect(segments(long)[2]).toHaveAttribute('title', 'offcut 91 mm · kerf 9 mm')
+    expect(segments(short).map((s) => s.textContent)).toEqual(['B', 'D', 'waste'])
+    expect(segments(short)[2]).toHaveAccessibleName('Waste 300 mm: offcut 291 mm · kerf 9 mm')
     expect(screen.getByText('3,600 mm')).toBeInTheDocument()
-    expect(screen.getByText('3,000 mm')).toBeInTheDocument()
+    expect(screen.getByText('3,300 mm')).toBeInTheDocument()
     expect(screen.getByText('waste 100 mm')).toBeInTheDocument()
+    expect(screen.getByText('waste 300 mm')).toBeInTheDocument()
+
+    // Saw order: A, kerf, C, kerf, offcut.
+    expect([...long.children].map((el) => el.textContent || el.className)).toEqual([
+      'A',
+      'cutting__kerf',
+      'C',
+      'cutting__kerf',
+      'waste',
+    ])
+    expect(kerfGaps(long)).toHaveLength(2)
+    expect(kerfGaps(short)).toHaveLength(2)
+    kerfGaps(long).forEach((gap) => expect(gap).toHaveAttribute('aria-hidden', 'true'))
 
     expect(widthOf(long)).toBeCloseTo(100)
     expect(widthOf(segments(long)[0])).toBeCloseTo(55.56, 1)
-    expect(widthOf(short)).toBeCloseTo(83.33, 1)
+    expect(widthOf(kerfGaps(long)[0])).toBeCloseTo(0.125)
+    expect(widthOf(short)).toBeCloseTo(91.67, 1)
     expect(screen.queryByRole('heading', { name: /Not planned/ })).not.toBeInTheDocument()
   })
 
@@ -71,7 +89,7 @@ describe('CuttingPanel', () => {
     await userEvent.tab()
     expect(cut).toHaveFocus()
     await userEvent.tab()
-    expect(segments(bars()[0])[1]).toHaveAccessibleName(/^OID C · Nogging · GOLV-999 · 1,500 mm · offset 2,000 mm$/)
+    expect(segments(bars()[0])[1]).toHaveAccessibleName(/^OID C · Nogging · GOLV-999 · 1,500 mm · offset 2,005 mm$/)
   })
 
   // S16
@@ -135,7 +153,7 @@ describe('CuttingPanel show in 3D', () => {
     const onShowInModel = vi.fn()
     render(<Panel boards={S01} onShowInModel={onShowInModel} />)
     const cut = segments(bars()[0])[1]
-    expect(cut).toHaveAccessibleName('OID C · Nogging · GOLV-999 · 1,500 mm · offset 2,000 mm')
+    expect(cut).toHaveAccessibleName('OID C · Nogging · GOLV-999 · 1,500 mm · offset 2,005 mm')
     const button = within(cut).getByRole('button', { name: 'Show OID C in 3D' })
     await userEvent.click(button)
     expect(onShowInModel).toHaveBeenLastCalledWith({ oids: ['C'], primary: 'C' })
@@ -150,8 +168,8 @@ describe('CuttingPanel show in 3D', () => {
   it('shows a whole board and a whole order line in 3D', async () => {
     const onShowInModel = vi.fn()
     render(<Panel boards={S01} onShowInModel={onShowInModel} />)
-    await userEvent.click(screen.getByRole('button', { name: 'Show 45x95 C24 board 2: 3,000 mm in 3D' }))
-    expect(onShowInModel).toHaveBeenLastCalledWith({ oids: ['B', 'D'], label: '45x95 C24 board 2: 3,000 mm' })
+    await userEvent.click(screen.getByRole('button', { name: 'Show 45x95 C24 board 2: 3,300 mm in 3D' }))
+    expect(onShowInModel).toHaveBeenLastCalledWith({ oids: ['B', 'D'], label: '45x95 C24 board 2: 3,300 mm' })
 
     await userEvent.click(screen.getByRole('button', { name: 'Show 45x95 C24 · 3,600 mm in 3D' }))
     expect(onShowInModel).toHaveBeenLastCalledWith({ oids: ['A', 'C'], label: '45x95 C24 · 3,600 mm' })

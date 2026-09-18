@@ -45,7 +45,7 @@ describe('buildTraceIndex', () => {
         article: expect.objectContaining({ id: '45x95-C24-3600' }),
         cutIndex: 1,
         cutCount: 2,
-        offsetMm: 2000,
+        offsetMm: 2004.5,
         lengthMm: 1500,
         wasteMm: 100,
         siblings: ['A'],
