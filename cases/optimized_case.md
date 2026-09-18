@@ -9,9 +9,19 @@ högkvalitativ heuristik.
 
 ## Indata och icke förhandlingsbara krav
 
-Använd alltid och endast `data/components.xml` som källa. Extrahera varje
+Använd alltid och endast `data/components.xml` som ritningskälla. Extrahera varje
 `FRAMEPIECE` med dess `WIDTH`, `HEIGHT`, `LENGTH`, `MAT_CODE`, `USE` och
-identifierare. Använd samma stocklängder och sågklingebredd som base case.
+identifierare.
+
+Använd Derome som enda inköpskälla och samma tidsstämplade
+`output/derome_stock_catalog.json` som base case och buyer case. Katalogen
+ska byggas från Deromes konstruktionsvirke-, limträbalk- och
+trävarusortimentssidor, enligt länkarna i `base_case.md`, och innehålla
+faktiskt tillgängliga stocklängder per material/dimension/hållfasthetsklass.
+Endast katalogens stockplankor får användas; saknade exakta grupper ska
+rapporteras som `unsupported` utan substitution.
+
+Använd `sågklingebredd_mm = 4.5` i varje kapning. Kapplankor får bara kombineras om materialtyp, bredd, höjd och hållfasthetsklass
 Kapplankor får bara kombineras om materialtyp, bredd, höjd och hållfasthetsklass
 är identiska. Längden behöver inte vara identisk: en 10 m stockplanka kan
 exempelvis kombineras för en 6 m och en 2 m kapplanka, med 2 m spill före kerf.
@@ -76,5 +86,6 @@ När denna instruktion ges till en Codex-modell ska modellen skapa:
 
 JSON-filen ska dokumentera metod, solver/heuristik, tidsgräns om en sådan
 används, antal inlästa `FRAMEPIECE`-poster, kapmönster, spill per stockplanka,
-totalt estimerat spill, optimalitetsstatus och ej hanterade poster. Den får
-inte läsa prisdata eller använda en annan fil i `data/` som indatakälla.
+totalt estimerat spill, 4,5 mm sågsnitt, katalogens hämtningstid,
+optimalitetsstatus och ej hanterade poster. Den får inte läsa prisdata eller
+använda en annan fil i `data/` som ritningsindatakälla.

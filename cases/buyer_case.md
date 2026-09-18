@@ -9,11 +9,19 @@ lika med base case, men sämre än eller lika med `optimized_case`.
 
 ## Indata och gemensamma begränsningar
 
-Använd alltid och endast `data/components.xml` som källa, precis som i base
-case. Extrahera individuella `FRAMEPIECE`-poster och använd deras `WIDTH`,
-`HEIGHT`, `LENGTH`, `MAT_CODE`, `USE` och identifierare. Använd samma
-stocklängder, enheter och sågklingebredd som i `base_case.md`. Material får
-endast kombineras när följande är identiskt:
+Använd alltid och endast `data/components.xml` som ritningskälla, precis som
+i base case. Extrahera individuella `FRAMEPIECE`-poster och använd deras
+`WIDTH`, `HEIGHT`, `LENGTH`, `MAT_CODE`, `USE` och identifierare.
+
+Använd Derome som enda inköpskälla och hämta eller återanvänd samma
+tidsstämplade `output/derome_stock_catalog.json` som base case. Katalogen ska
+vara hämtad från Deromes konstruktionsvirke-, limträbalk- och
+trävarusortimentssidor, som anges i `base_case.md`. Använd endast dess
+verkliga stocklängder. En dimension eller hållfasthetsklass får aldrig
+ersättas med en annan när den saknas i katalogen.
+
+Använd `sågklingebredd_mm = 4.5` konsekvent. Material får endast kombineras
+när följande är identiskt:
 
 - materialtyp
 - bredd i mm
@@ -21,8 +29,8 @@ endast kombineras när följande är identiskt:
 - hållfasthetsklass
 
 Kapplankornas längder behöver inte vara identiska för att kombineras. Exempel:
-en 10 m stockplanka med två kapplankor på 6 m respektive 2 m lämnar 2 m spill
-före hänsyn till sågklingebredd. Alla efterfrågade kapplankor måste levereras
+en 10 m stockplanka med två kapplankor på 6 m respektive 2 m lämnar 1 991 mm
+spill efter två sågsnitt om 4,5 mm. Alla efterfrågade kapplankor måste levereras
 exakt en gång. En kapplanka får aldrig delas, och en restbit från en annan
 dimensionsgrupp får aldrig användas.
 
@@ -82,5 +90,6 @@ När denna instruktion ges till en Codex-modell ska modellen skapa:
 
 Resultatfilen ska redovisa alla antaganden, antal inlästa `FRAMEPIECE`-poster,
 kapmönster, antal stockplankor med en respektive två kapplankor, spill per
-stockplanka, totalt estimerat spill och ej hanterade poster. Den får inte läsa
-prisdata eller använda en annan fil i `data/` som indatakälla.
+stockplanka, totalt estimerat spill, Derome-katalogens hämtningstid och ej
+hanterade poster. Den får inte läsa prisdata eller använda en annan fil i
+`data/` som ritningsindatakälla.

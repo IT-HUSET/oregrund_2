@@ -15,8 +15,9 @@ en annan kapplanka. Detta är jämförelsevärdet som `buyer_case` och
 
 En stockplanka kan bara användas för kapplankor med samma material, bredd,
 höjd och hållfasthetsklass. Längderna får däremot vara olika. En stockplanka
-på 10 m kan alltså ge en kapplanka på 6 m och en på 2 m; utan sågklingebredd
-blir då 2 m spill.
+på 10 m kan alltså ge en kapplanka på 6 m och en på 2 m. Detta motsvarar 2 m
+spill före sågklingebredd; med det obligatoriska 4,5 mm sågsnittet räknas
+spillet längre ned.
 
 ## Indata
 
@@ -24,7 +25,24 @@ Använd alltid och endast `data/components.xml` som källa för detta scenario.
 Filen är en strukturerad Vertex CAD-export och innehåller individuella
 `FRAMEPIECE`-poster med `WIDTH`, `HEIGHT`, `LENGTH`, `MAT_CODE`, `USE` och
 spårbar identifierare. Den är mer lämplig än PDF-ritningarna för exakta
-spillberäkningar. Varje efterfrågad kapplanka måste minst innehålla:
+spillberäkningar.
+
+Använd **Derome** som enda inköpskälla för stockplankor. Hämta en ny,
+tidsstämplad katalogsnapshot från dessa delar av Deromes nätkatalog:
+
+- konstruktionsvirke: `https://www.derome.se/handla-online/produkter/traeprodukter/plank-reglar/konstruktionsvirke-c24`
+- limträbalk: `https://www.derome.se/handla-online/produkter/traeprodukter/limtrae/limtraebalk`
+- hela trävarusortimentet: `https://www.derome.se/handla-online/produkter/traeprodukter`
+
+Snapshoten ska innehålla produkt-id, materialtyp, bredd, höjd, hållfasthets-
+klass, verkliga tillgängliga stocklängder, hämtningstid och käll-URL. Den ska
+täckningstestas mot varje unik grupp i `components.xml`. En stockplanka är
+inköpsbar enbart om samma material, bredd, höjd och hållfasthetsklass finns i
+snapshoten. Längden får vara längre än kapplankans längd. Saknas en exakt
+grupp ska den rapporteras som `unsupported`; substituera aldrig till en annan
+dimension eller hållfasthetsklass.
+
+Varje efterfrågad kapplanka måste minst innehålla:
 
 ```json
 {
@@ -36,9 +54,16 @@ spillberäkningar. Varje efterfrågad kapplanka måste minst innehålla:
 }
 ```
 
-Stocklängder ska ges som en konfigurerbar lista i millimeter, exempelvis
-`[2400, 2700, 3000, ..., 12000]`. Använd aldrig en kortare stockplanka än kapplankans
-längd plus sågklingebredd.
+Stocklängder ska komma från Derome-snapshoten, inte från en hårdkodad lista.
+Använd aldrig en kortare stockplanka än kapplankans längd plus
+sågklingebredd.
+
+## Sågsnitt
+
+Använd `sågklingebredd_mm = 4.5` i alla beräkningar. Det representerar ett
+sågsnitt inom intervallet 4-5 mm. Reservera 4,5 mm för varje kapplanka som tas
+ut ur en stockplanka. Exempel: 6 000 mm + 2 000 mm från en 10 000 mm
+stockplanka lämnar 1 991 mm spill när två sågsnitt om 4,5 mm räknas med.
 
 ## Regler
 
@@ -61,9 +86,8 @@ För varje köpt stockplanka:
 spill_mm = stocklängd_mm - kapplankans_längd_mm - sågklingebredd_mm
 ```
 
-Den normala startinställningen är `sågklingebredd_mm = 0`. Om en
-sågklingebredd används ska den redovisas i resultatet och appliceras på varje
-utförd kapning.
+Sågklingebredden är alltid 4,5 mm och ska redovisas i resultatet samt
+appliceras på varje utförd kapning.
 
 ## Krav på resultatfil
 
@@ -89,7 +113,9 @@ När denna instruktion ges till en Codex-modell ska modellen skapa:
 2. `output/simulation_base_case.json` - resultatfilen från körningen.
 
 Python-filen ska vara reproducerbar, använda millimeter internt och skriva
-alla antaganden i resultatfilen. JSON-resultatet ska innehålla relevanta
-diagnostikfält, till exempel antal inlästa `FRAMEPIECE`-poster, antal
-kapplankor, antal köpta stockplankor, spill per kapmönster och ej hanterade
-poster. Den får inte läsa prisdata eller andra filer som indata.
+alla antaganden i resultatfilen. Den ska även skapa
+`output/derome_stock_catalog.json` med den katalogsnapshot som användes.
+JSON-resultatet ska innehålla relevanta diagnostikfält, till exempel antal
+inlästa `FRAMEPIECE`-poster, antal kapplankor, antal köpta stockplankor, spill
+per kapmönster, katalogtäckning och ej hanterade poster. Den får inte läsa
+prisdata eller andra filer som ritningsindata.
