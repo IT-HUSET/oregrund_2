@@ -1,10 +1,28 @@
 import * as THREE from 'three'
-import { IFCUNITASSIGNMENT, type IfcAPI } from 'web-ifc'
 import {
+  IFCBEAM,
+  IFCBUILDING,
+  IFCBUILDINGSTOREY,
+  IFCCOLUMN,
+  IFCCOVERING,
+  IFCELEMENTASSEMBLY,
+  IFCELEMENTQUANTITY,
+  IFCPROJECT,
+  IFCRELAGGREGATES,
+  IFCRELDEFINESBYPROPERTIES,
+  IFCSITE,
+  IFCSPACE,
+  IFCUNITASSIGNMENT,
+  type IfcAPI,
+} from 'web-ifc'
+import { toBoard, type Board } from '../../domain/boards/board.ts'
+import {
+  isLine,
   resolveProjectUnits,
   toElementInfo,
   type ElementInfo,
   type ProjectUnits,
+  type RawLine,
 } from '../../domain/ifc/elementInfo.ts'
 
 export type IfcLoadErrorKind = 'parse' | 'no-geometry' | 'too-large' | 'unexpected'
@@ -24,6 +42,8 @@ export interface LoadedIfcModel {
   root: THREE.Group
   meshCount: number
   getElementInfo(expressId: number): Promise<ElementInfo>
+  // Every framing and siding board in the model. Extracted on first call, then memoized.
+  getBoards(): Promise<Board[]>
   // Frees GPU resources and the web-ifc model. The model must not be used afterwards.
   dispose(): void
 }
@@ -56,6 +76,7 @@ export async function loadIfcModel(
       throw new IfcLoadError('no-geometry', 'The model contains no displayable geometry')
     }
     const units = readProjectUnits(api, modelId)
+    let boards: Promise<Board[]> | undefined
 
     return {
       root,
@@ -70,6 +91,10 @@ export async function loadIfcModel(
           propertyDefinitions,
           units,
         })
+      },
+      getBoards() {
+        boards ??= Promise.resolve().then(() => readBoards(api, modelId))
+        return boards
       },
       dispose() {
         disposeScene(root)
@@ -140,6 +165,92 @@ function material(
     cache.set(key, m)
   }
   return m
+}
+
+const BOARD_TYPES = [IFCBEAM, IFCCOLUMN, IFCCOVERING]
+// Walking up the aggregation tree stops here: no prefab element encloses the spatial structure.
+const SPATIAL_TYPES = new Set([IFCPROJECT, IFCSITE, IFCBUILDING, IFCBUILDINGSTOREY, IFCSPACE])
+
+// Builds the relation lookups in one pass over IFCRELAGGREGATES / IFCRELDEFINESBYPROPERTIES
+// instead of scanning every relation once per board.
+function readBoards(api: IfcAPI, modelId: number): Board[] {
+  const boardIds = BOARD_TYPES.flatMap((type) => lineIds(api, modelId, type))
+  const isBoard = new Set(boardIds)
+
+  const parentOf = new Map<number, number>()
+  for (const id of lineIds(api, modelId, IFCRELAGGREGATES)) {
+    const rel = api.GetLine(modelId, id) as RawLine
+    const parent = refId(rel.RelatingObject)
+    if (parent === undefined) continue
+    for (const child of refIds(rel.RelatedObjects)) parentOf.set(child, parent)
+  }
+
+  const quantitySetIds = new Set(lineIds(api, modelId, IFCELEMENTQUANTITY))
+  const quantitySets = new Map<number, RawLine[]>()
+  const quantitiesOf = new Map<number, RawLine[]>()
+  for (const id of lineIds(api, modelId, IFCRELDEFINESBYPROPERTIES)) {
+    const rel = api.GetLine(modelId, id) as RawLine
+    const related = refIds(rel.RelatedObjects).filter((obj) => isBoard.has(obj))
+    if (related.length === 0) continue
+    for (const setId of refIds(rel.RelatingPropertyDefinition)) {
+      if (!quantitySetIds.has(setId)) continue
+      let quantities = quantitySets.get(setId)
+      if (!quantities) {
+        const set = api.GetLine(modelId, setId, true) as RawLine
+        quantities = Array.isArray(set.Quantities) ? set.Quantities.filter(isLine) : []
+        quantitySets.set(setId, quantities)
+      }
+      for (const obj of related) quantitiesOf.set(obj, [...(quantitiesOf.get(obj) ?? []), ...quantities])
+    }
+  }
+
+  const assemblies = new Map<number, RawLine | null>()
+  const assemblyOf = (id: number): RawLine | null => {
+    const seen = new Set<number>()
+    for (let current = parentOf.get(id); current !== undefined; current = parentOf.get(current)) {
+      if (assemblies.has(current)) return assemblies.get(current) ?? null
+      if (seen.has(current)) break // malformed, cyclic aggregation
+      seen.add(current)
+      const type = api.GetLineType(modelId, current)
+      if (type === IFCELEMENTASSEMBLY) {
+        const assembly = api.GetLine(modelId, current) as RawLine
+        assemblies.set(current, assembly)
+        return assembly
+      }
+      if (SPATIAL_TYPES.has(type)) break
+    }
+    return null
+  }
+
+  return boardIds.map((expressId) =>
+    toBoard({
+      expressId,
+      ifcTypeName: api.GetNameFromTypeCode(api.GetLineType(modelId, expressId)) ?? '',
+      attributes: api.GetLine(modelId, expressId) as RawLine,
+      quantities: quantitiesOf.get(expressId) ?? [],
+      assembly: assemblyOf(expressId),
+    }),
+  )
+}
+
+function lineIds(api: IfcAPI, modelId: number, type: number): number[] {
+  const vector = api.GetLineIDsWithType(modelId, type)
+  const ids: number[] = []
+  for (let i = 0; i < vector.size(); i++) ids.push(vector.get(i))
+  return ids
+}
+
+// Entity references in unflattened lines are handles: { type: 5, value: expressID }.
+function refId(ref: unknown): number | undefined {
+  const value = (ref as { value?: unknown } | null)?.value
+  return typeof value === 'number' ? value : undefined
+}
+
+function refIds(refs: unknown): number[] {
+  return [refs]
+    .flat()
+    .map(refId)
+    .filter((id) => id !== undefined)
 }
 
 function readProjectUnits(api: IfcAPI, modelId: number): ProjectUnits {

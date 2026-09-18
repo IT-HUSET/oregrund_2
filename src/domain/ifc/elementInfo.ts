@@ -178,12 +178,14 @@ function formatValue(wrapped: unknown): string {
   return v ?? ''
 }
 
-function text(wrapped: unknown): string {
+// Unwraps a web-ifc attribute value ({ value } / { _representationValue }) to a decoded string.
+export function text(wrapped: unknown): string {
   const v = scalar(wrapped)
   return v == null ? '' : String(v)
 }
 
-function scalar(wrapped: unknown): string | number | boolean | undefined {
+// Unwraps a web-ifc attribute value to a decoded string, number or boolean.
+export function scalar(wrapped: unknown): string | number | boolean | undefined {
   if (wrapped == null) return undefined
   if (typeof wrapped !== 'object') return normalize(wrapped)
   const w = wrapped as Record<string, unknown>
@@ -203,6 +205,6 @@ function measureName(wrapped: unknown): string {
   return typeof name === 'string' ? name.toUpperCase() : ''
 }
 
-function isLine(v: unknown): v is RawLine {
+export function isLine(v: unknown): v is RawLine {
   return typeof v === 'object' && v !== null
 }

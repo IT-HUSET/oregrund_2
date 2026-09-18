@@ -1,0 +1,130 @@
+.board-list {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  padding: 16px;
+  font-size: 14px;
+}
+
+.board-list__message {
+  margin: 0;
+  padding: 24px 16px;
+  color: var(--text-muted);
+}
+
+.board-list__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  margin-bottom: 8px;
+}
+
+.board-list__heading h2 {
+  margin: 0;
+  font-size: 16px;
+}
+
+.board-list__totals {
+  margin-left: auto;
+  color: var(--text-muted);
+}
+
+.board-list__filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-muted);
+}
+
+.board-list__filter button {
+  padding: 2px 10px;
+}
+
+.board-list__warning {
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.board-list__table {
+  width: 100%;
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.board-list__summary {
+  width: auto;
+  min-width: min(100%, 480px);
+}
+
+.board-list__table th,
+.board-list__table td {
+  padding: 4px 12px 4px 0;
+  border-top: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.board-list__table th {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.board-list__table .board-list__num {
+  text-align: right;
+}
+
+.board-list__pieces thead th {
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+}
+
+.board-list__sort,
+.board-list__group {
+  padding: 0;
+  border: 0;
+  background: none;
+  font-weight: inherit;
+  text-align: inherit;
+}
+
+.board-list__sort-icon {
+  display: inline-block;
+  width: 1.2em;
+  text-align: center;
+}
+
+.board-list__group {
+  color: #0969da;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.board-list__row--active {
+  background: var(--highlight-bg);
+}
+
+.board-list__row--active .board-list__group {
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.board-list__flag {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 0 6px;
+  border-radius: 4px;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: 12px;
+}
+
+@media (prefers-color-scheme: dark) {
+  .board-list__group {
+    color: #4493f8;
+  }
+}

@@ -2,6 +2,8 @@ import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import * as THREE from 'three'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import type { Board } from './domain/boards/board.ts'
+import { makeBoard } from './domain/boards/__fixtures__/boards.ts'
 import type { ElementInfo } from './domain/ifc/elementInfo.ts'
 import { IfcLoadError, loadIfcModel, type LoadedIfcModel } from './features/ifc-viewer/ifcLoader.ts'
 import App from './App.tsx'
@@ -35,10 +37,16 @@ const beamInfo: ElementInfo = {
   quantitySets: [{ name: 'Qto_BeamBaseQuantities', quantities: [{ name: 'Length', value: '255', unit: 'mm' }] }],
 }
 
-function fakeModel(name: string, info: ElementInfo = beamInfo): LoadedIfcModel {
+function fakeModel(name: string, info: ElementInfo = beamInfo, boards: Board[] = []): LoadedIfcModel {
   const root = new THREE.Group()
   root.name = name
-  return { root, meshCount: 1, getElementInfo: vi.fn(async () => info), dispose: vi.fn() }
+  return {
+    root,
+    meshCount: 1,
+    getElementInfo: vi.fn(async () => info),
+    getBoards: vi.fn(async () => boards),
+    dispose: vi.fn(),
+  }
 }
 
 function deferred<T>() {
@@ -192,5 +200,158 @@ describe('App', () => {
     await choose('empty.ifc')
     expect(await screen.findByRole('alert')).toHaveTextContent('The file contains no 3D geometry to display.')
     expect(screen.getByRole('button', { name: 'Choose IFC file' })).toBeEnabled()
+  })
+})
+
+const boardsA = [
+  makeBoard('1 Stud 45x220 C24', 2408, { oid: '589830' }),
+  makeBoard('2 Stud 45x220 C24', 1200, { oid: '589831' }),
+  makeBoard('36 Siding board 22x145_sta_Z C16', 3000, { oid: '589997' }),
+]
+const boardsB = [makeBoard('9 Joist 45x195 C24', 4200, { oid: '700001' })]
+
+const tab = (name: string) => screen.getByRole('tab', { name })
+const pieceOids = () =>
+  within(screen.getByRole('table', { name: 'Pieces' }))
+    .getAllByRole('row')
+    .slice(1)
+    .map((row) => within(row).getAllByRole('cell')[0].textContent)
+
+// Board list: the tab bar and the Boards tab in the app shell
+describe('App tabs', () => {
+  it('shows the tab bar only once a model has loaded, with 3D model selected', async () => {
+    loadMock.mockResolvedValueOnce(fakeModel('model-a'))
+    render(<App />)
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+
+    await choose('a.ifc')
+    await expectModel('model-a')
+    expect(screen.getByRole('tablist')).toBeInTheDocument()
+    expect(tab('3D model')).toHaveAttribute('aria-selected', 'true')
+    expect(tab('Boards')).toHaveAttribute('aria-selected', 'false')
+    expect(screen.getByRole('tabpanel', { name: '3D model' })).toContainElement(screen.getByTestId('viewport'))
+  })
+
+  it('does not show the tab bar when the first load fails', async () => {
+    loadMock.mockRejectedValueOnce(new IfcLoadError('parse', 'bad'))
+    render(<App />)
+    await choose('broken.ifc')
+    await screen.findByRole('alert')
+    expect(screen.queryByRole('tablist')).not.toBeInTheDocument()
+  })
+
+  // S04 + S05: switching tabs keeps the viewport mounted with its selection
+  it('switches to Boards and back without recreating the 3D view', async () => {
+    const model = fakeModel('model-a', beamInfo, boardsA)
+    loadMock.mockResolvedValueOnce(model)
+    render(<App />)
+    await loadAndPick()
+    const viewport = screen.getByTestId('viewport')
+
+    await userEvent.click(tab('Boards'))
+    expect(tab('Boards')).toHaveAttribute('aria-selected', 'true')
+    expect(tab('3D model')).toHaveAttribute('aria-selected', 'false')
+    const panel = screen.getByRole('tabpanel', { name: 'Boards' })
+    expect(await within(panel).findByRole('table', { name: 'Pieces' })).toBeInTheDocument()
+    expect(pieceOids()).toEqual(['589997', '589831', '589830'])
+    expect(screen.queryByRole('tabpanel', { name: '3D model' })).not.toBeInTheDocument() // hidden
+
+    await userEvent.click(tab('3D model'))
+    expect(screen.getByTestId('viewport')).toBe(viewport)
+    expect(viewport).toHaveAttribute('data-model', 'model-a')
+    expect(viewport).toHaveAttribute('data-selected', '38')
+    expect(screen.queryByRole('tabpanel', { name: 'Boards' })).not.toBeInTheDocument()
+
+    await userEvent.click(tab('Boards'))
+    await userEvent.click(tab('3D model'))
+    await userEvent.click(tab('Boards'))
+    expect(model.getBoards).toHaveBeenCalledTimes(1)
+  })
+
+  it('switches tabs with the arrow keys', async () => {
+    loadMock.mockResolvedValueOnce(fakeModel('model-a', beamInfo, boardsA))
+    render(<App />)
+    await choose('a.ifc')
+    await expectModel('model-a')
+
+    tab('3D model').focus()
+    await userEvent.keyboard('{ArrowRight}')
+    expect(tab('Boards')).toHaveAttribute('aria-selected', 'true')
+    expect(tab('Boards')).toHaveFocus()
+    expect(tab('3D model')).toHaveAttribute('tabindex', '-1')
+
+    await userEvent.keyboard('{ArrowRight}')
+    expect(tab('3D model')).toHaveAttribute('aria-selected', 'true')
+    expect(tab('3D model')).toHaveFocus()
+  })
+
+  // S05: a new file resets the board list (filter and sort)
+  it('shows the new model’s boards unfiltered when a new file is loaded on the Boards tab', async () => {
+    loadMock
+      .mockResolvedValueOnce(fakeModel('model-a', beamInfo, boardsA))
+      .mockResolvedValueOnce(fakeModel('model-b', beamInfo, boardsB))
+    render(<App />)
+    await choose('a.ifc')
+    await expectModel('model-a')
+    await userEvent.click(tab('Boards'))
+    await userEvent.click(await screen.findByRole('button', { name: '45x220 C24' }))
+    await userEvent.click(screen.getByRole('button', { name: 'OID' }))
+    expect(screen.getByText('filtered: 45x220 C24')).toBeInTheDocument()
+
+    await choose('b.ifc')
+    await expectModel('model-b')
+    expect(tab('Boards')).toHaveAttribute('aria-selected', 'true')
+    await vi.waitFor(() => expect(pieceOids()).toEqual(['700001']))
+    expect(screen.queryByText(/filtered:/)).not.toBeInTheDocument()
+    const pieces = screen.getByRole('table', { name: 'Pieces' })
+    expect(within(pieces).getByRole('columnheader', { name: /Profile/ })).toHaveAttribute('aria-sort', 'ascending')
+  })
+
+  it('ignores the board list of a model that has since been replaced', async () => {
+    const slowBoards = deferred<Board[]>()
+    const first = fakeModel('model-a', beamInfo, boardsA)
+    vi.mocked(first.getBoards).mockReturnValueOnce(slowBoards.promise)
+    loadMock.mockResolvedValueOnce(first).mockResolvedValueOnce(fakeModel('model-b', beamInfo, boardsB))
+    render(<App />)
+    await choose('a.ifc')
+    await expectModel('model-a')
+    await userEvent.click(tab('Boards'))
+    expect(screen.getByText('Reading boards…')).toBeInTheDocument()
+
+    await choose('b.ifc')
+    await expectModel('model-b')
+    await vi.waitFor(() => expect(pieceOids()).toEqual(['700001']))
+    await act(async () => slowBoards.resolve(boardsA))
+    expect(pieceOids()).toEqual(['700001'])
+  })
+
+  // S07: a failed board extraction stays inside the Boards tab
+  it('shows an error in the Boards tab when the board list cannot be built', async () => {
+    const model = fakeModel('model-a')
+    const failure = new Error('boom')
+    vi.mocked(model.getBoards).mockRejectedValueOnce(failure)
+    loadMock.mockResolvedValueOnce(model)
+    render(<App />)
+    await choose('a.ifc')
+    await expectModel('model-a')
+
+    await userEvent.click(tab('Boards'))
+    expect(await screen.findByText('The board list could not be built from this model.')).toBeInTheDocument()
+    expect(console.error).toHaveBeenCalledWith('Failed to build the board list', failure)
+
+    await userEvent.click(tab('3D model'))
+    expect(screen.getByTestId('viewport')).toHaveAttribute('data-model', 'model-a')
+    await userEvent.click(screen.getByRole('button', { name: 'pick 38' }))
+    expect(await screen.findByRole('heading', { name: '16mm Rörutlopp' })).toBeInTheDocument()
+  })
+
+  // S08
+  it('shows an empty state for a model without boards', async () => {
+    loadMock.mockResolvedValueOnce(fakeModel('model-a', beamInfo, []))
+    render(<App />)
+    await choose('a.ifc')
+    await expectModel('model-a')
+    await userEvent.click(tab('Boards'))
+    expect(await screen.findByText('No boards found in this model.')).toBeInTheDocument()
   })
 })

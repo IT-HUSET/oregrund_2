@@ -6,6 +6,9 @@
   --viewport-bg: #eef1f4;
   --error-bg: #ffebe9;
   --error-text: #82071e;
+  --warning-bg: #fff8c5;
+  --warning-text: #6f4e00;
+  --highlight-bg: #ddf4ff;
 
   font: 16px/1.5 system-ui, 'Segoe UI', Roboto, sans-serif;
   color-scheme: light dark;
@@ -22,6 +25,9 @@
     --viewport-bg: #151b23;
     --error-bg: #3c1618;
     --error-text: #ffa198;
+    --warning-bg: #3b2e00;
+    --warning-text: #e3b341;
+    --highlight-bg: #0c2d6b;
   }
 }
 

@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import * as THREE from 'three'
 import { IfcAPI } from 'web-ifc'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { IfcLoadError, loadIfcModel } from './ifcLoader.ts'
 
 // Runs the real web-ifc (node build) against hand-authored, anonymised fixtures.
@@ -44,6 +44,49 @@ describe('loadIfcModel', () => {
     expect(info.propertySets.map((p) => p.name)).toEqual(['Pset_BeamCommon'])
     expect(info.quantitySets[0].quantities).toContainEqual({ name: 'Length', value: '1200', unit: 'mm' })
     expect((await model.getElementInfo(47)).name).toBe('Dosa hög')
+    model.dispose()
+  })
+
+  // Board list S02: framing and siding boards with Tag, kind, Length and prefab element
+  it('extracts the boards of a model with their length and prefab element', async () => {
+    const model = await loadIfcModel(fixture('boards.ifc'), createNodeIfcApi)
+    const boards = await model.getBoards()
+
+    expect(boards.map((b) => [b.oid, b.ifcType, b.kind, b.length, b.element])).toEqual([
+      ['900101', 'IFCBEAM', 'framing', 2408, 'GOLV-999*'],
+      ['900102', 'IFCCOLUMN', 'framing', 2399.9999999, 'GOLV-999*'],
+      ['900103', 'IFCCOVERING', 'siding', 3000, 'GOLV-999*'],
+    ])
+    expect(boards[2]).toMatchObject({
+      name: '36 Siding board 22x145_sta_Z C16*',
+      role: 'Siding board',
+      profile: { label: '22x145_sta_Z' },
+      grade: 'C16',
+      issues: [],
+    })
+    expect(boards.map((b) => b.oid)).not.toContain('900104') // IFCBUILDINGELEMENTPROXY
+    expect(boards.map((b) => b.oid)).not.toContain('900105') // IFCPLATE
+    model.dispose()
+  })
+
+  it('extracts the boards only once per model', async () => {
+    let api: IfcAPI | undefined
+    const model = await loadIfcModel(fixture('boards.ifc'), async () => (api = await createNodeIfcApi()))
+    const lineIdsWithType = vi.spyOn(api!, 'GetLineIDsWithType')
+
+    const first = await model.getBoards()
+    const calls = lineIdsWithType.mock.calls.length
+    expect(calls).toBeGreaterThan(0)
+    expect(await model.getBoards()).toBe(first)
+    expect(lineIdsWithType).toHaveBeenCalledTimes(calls)
+    model.dispose()
+  })
+
+  it('lists a board without a parent assembly with an empty element', async () => {
+    const model = await loadIfcModel(fixture('beam.ifc'), createNodeIfcApi)
+    const boards = await model.getBoards()
+    expect(boards).toHaveLength(1) // the proxy is not a board
+    expect(boards[0]).toMatchObject({ oid: '900001', element: '', length: 1200, grade: 'C24' })
     model.dispose()
   })
 
