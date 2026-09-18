@@ -5,9 +5,13 @@
 Använd denna fil för att jämföra tre simuleringar som bygger på exakt samma
 ritningsdata, stocklängder och sågklingebredd:
 
-- `base_case`: en köpt träbit per kapbit
-- `buyer_case`: lokal greedy-kombination med högst två kapbitar per träbit
-- `optimized_case`: global optimering med valfritt antal kompatibla kapbitar
+- `base_case`: en köpt stockplanka per kapplanka
+- `buyer_case`: lokal greedy-kombination med högst två kapplankor per stockplanka
+- `optimized_case`: global optimering med valfritt antal kompatibla kapplankor
+
+En kombination är bara tillåten när material, bredd, höjd och hållfasthetsklass
+är samma. Kapplankornas längder får vara olika. Till exempel är 6 m + 2 m från
+en 10 m stockplanka tillåtet och ger 2 m spill före sågklingebredd.
 
 Jämför inte resultat som bygger på olika indatamängder eller olika
 stocklängder. I så fall ska skillnaden redovisas som ej jämförbar.
@@ -34,15 +38,16 @@ Beräkna dessutom för buyer case och optimized case:
 
 - spillminskning i meter jämfört med base case
 - spillminskning i procent jämfört med base case
-- minskning i antal inköpta träbitar jämfört med base case
+- minskning i antal inköpta stockplankor jämfört med base case
 - ytterligare spillminskning jämfört med buyer case
 
 ## Största konceptuella skillnader
 
 | Område | Base case | Buyer case | Optimized case |
 | --- | --- | --- | --- |
-| Kapbitar per träbit | Exakt 1 | Högst 2 | Valfritt antal som ryms |
+| Kapplankor per stockplanka | Exakt 1 | Högst 2 | Valfritt antal som ryms |
 | Beslutsmetod | Ingen samordning | Lokal greedy | Global optimering |
+| Kombination av olika längder | Nej | Ja, högst två kompatibla kapplankor | Ja, valfritt antal kompatibla kapplankor |
 | Återanvändning av restlängd | Nej | Bara i uppenbara par vid första kapningen | Ja, genom hela kapmönstret |
 | Förväntat spill | Högst | Lägre | Lägst eller lika lågt |
 | Syfte | Referensvärde | Realistisk manuell nivå | Teoretiskt/bäst funnet resultat |
@@ -52,5 +57,5 @@ Beräkna dessutom för buyer case och optimized case:
 Skriv exempelvis `output/simulation_comparison.json` och en kort
 maskinläsbar slutsats. Resultatet ska alltid ange vilka antaganden som är
 gemensamma samt varna om en lösning inte uppfyller all efterfrågan. Ett lägre
-spill är bara giltigt som förbättring när rätt antal kapbitar faktiskt har
+spill är bara giltigt som förbättring när rätt antal kapplankor faktiskt har
 producerats.
