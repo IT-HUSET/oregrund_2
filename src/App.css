@@ -10,25 +10,32 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 12px 16px;
+  padding: 12px 20px;
   border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .app__brand {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
+  min-width: 0;
 }
 
 .app__logo {
   display: block;
-  height: 28px;
+  height: 26px;
   width: auto;
 }
 
 .app__header h1 {
   margin: 0;
-  font-size: 20px;
+  padding-left: 14px;
+  border-left: 1px solid var(--border-strong);
+  font-size: 18px;
+  font-weight: 650;
+  line-height: 1.2;
 }
 
 .app__file {
@@ -39,39 +46,66 @@
 }
 
 .app__file-name {
+  max-width: 40ch;
+  padding: 4px 10px;
   overflow: hidden;
+  border-radius: 999px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: var(--text-muted);
+}
+
+.app__primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.app__primary:hover:not(:disabled) {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+  color: var(--on-accent);
 }
 
 .app__error {
-  margin: 0;
-  padding: 8px 16px;
+  margin: 12px 20px 0;
+  padding: 10px 14px;
+  border-radius: var(--radius);
   background: var(--error-bg);
   color: var(--error-text);
 }
 
 .app__tabs {
   display: flex;
-  gap: 4px;
-  padding: 0 16px;
-  border-bottom: 1px solid var(--border);
+  align-self: flex-start;
+  gap: 2px;
+  margin: 12px 20px 0;
+  padding: 3px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface-muted);
 }
 
 .app__tab {
-  margin-bottom: -1px;
-  padding: 8px 14px;
+  padding: 6px 16px;
   border: 0;
-  border-bottom: 2px solid transparent;
-  border-radius: 0;
+  border-radius: 7px;
   background: none;
+  box-shadow: none;
   color: var(--text-muted);
 }
 
-.app__tab[aria-selected='true'] {
-  border-bottom-color: #0969da;
+.app__tab:hover:not(:disabled) {
   color: var(--text);
+}
+
+.app__tab[aria-selected='true'] {
+  background: var(--surface);
+  box-shadow: var(--shadow-sm), 0 0 0 1px var(--border);
+  color: var(--accent-text);
   font-weight: 600;
 }
 
@@ -80,12 +114,14 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  padding: 12px 20px 20px;
 }
 
 .app__viewer {
   flex: 1;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 340px;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 16px;
   min-height: 0;
 }
 
@@ -93,12 +129,14 @@
   flex: 1;
   min-height: 0;
   overflow: auto;
+  border-radius: var(--radius-lg);
 }
 
 .app__loading {
-  margin: 0;
-  padding: 8px 16px;
-  border-bottom: 1px solid var(--border);
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius);
+  background: var(--surface);
   color: var(--text-muted);
 }
 
@@ -111,6 +149,10 @@
 .app__stage {
   position: relative;
   min-height: 0;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
 }
 
 .app__overlay {
@@ -121,10 +163,23 @@
   padding: 24px;
   text-align: center;
   color: var(--text-muted);
+  font-size: 15px;
   pointer-events: none;
 }
 
 @media (max-width: 800px) {
+  .app__header,
+  .app__main {
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .app__tabs,
+  .app__error {
+    margin-left: 16px;
+    margin-right: 16px;
+  }
+
   .app__viewer {
     grid-template-columns: 1fr;
     grid-template-rows: minmax(300px, 1fr) auto;

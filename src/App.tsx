@@ -204,11 +204,11 @@ function App() {
       <header className="app__header">
         <div className="app__brand">
           <img className="app__logo" src={lindbacksLogo} alt="Lindbäcks" />
-          <h1>Labbithuset</h1>
+          <h1>Spilloptimeringsmotor</h1>
         </div>
         <div className="app__file">
           {shown && <span className="app__file-name">{shown.fileName}</span>}
-          <button type="button" onClick={() => inputRef.current?.click()}>
+          <button type="button" className="app__primary" onClick={() => inputRef.current?.click()}>
             Choose IFC file
           </button>
           <input

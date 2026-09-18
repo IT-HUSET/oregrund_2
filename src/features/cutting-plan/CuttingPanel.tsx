@@ -245,7 +245,7 @@ function CutBoard({ board, label, scaleMm, boardByOid, onShowInModel, targetOid 
   const allInModel = oids.every((oid) => boardByOid.has(oid))
   return (
     <div className={`cutting__board${current ? ' cutting__board--current' : ''}`}>
-      <span className="cutting__board-length">{formatMm(article.lengthMm)}</span>
+      <span className="cutting__board-length">{formatMm(article.lengthMm)} mm</span>
       <div className="cutting__track">
         <ol className="cutting__bar" aria-label={label} style={{ width: percent(article.lengthMm, scaleMm) }}>
           {cuts.map((cut, i) => {
@@ -255,7 +255,7 @@ function CutBoard({ board, label, scaleMm, boardByOid, onShowInModel, targetOid 
               source?.role,
               source?.element,
               `${formatMm(cut.lengthMm)} mm`,
-              `offset ${formatMm(cut.offsetMm)}`,
+              `offset ${formatMm(cut.offsetMm)} mm`,
             ]
               .filter(Boolean)
               .join(' · ')
@@ -308,7 +308,7 @@ function CutBoard({ board, label, scaleMm, boardByOid, onShowInModel, targetOid 
           )}
         </ol>
       </div>
-      <span className="cutting__board-waste">{waste > 0 ? `waste ${formatMm(board.wasteMm)}` : ''}</span>
+      <span className="cutting__board-waste">{waste > 0 ? `waste ${formatMm(board.wasteMm)} mm` : ''}</span>
       {onShowInModel && (
         <button
           type="button"

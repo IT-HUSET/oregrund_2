@@ -50,6 +50,9 @@ describe('CuttingPanel', () => {
     expect(segments(long).map((s) => s.textContent)).toEqual(['A', 'C', 'waste'])
     expect(segments(long)[2]).toHaveAccessibleName('Waste 100 mm')
     expect(segments(short).map((s) => s.textContent)).toEqual(['B', 'D'])
+    expect(screen.getByText('3,600 mm')).toBeInTheDocument()
+    expect(screen.getByText('3,000 mm')).toBeInTheDocument()
+    expect(screen.getByText('waste 100 mm')).toBeInTheDocument()
 
     expect(widthOf(long)).toBeCloseTo(100)
     expect(widthOf(segments(long)[0])).toBeCloseTo(55.56, 1)
@@ -61,14 +64,14 @@ describe('CuttingPanel', () => {
   it('makes every cut traceable to its IFC element', async () => {
     render(<Panel boards={S01} />)
     const cut = segments(bars()[0])[0]
-    const expected = 'OID A · Stud · VÄGG-999 · 2,000 mm · offset 0'
+    const expected = 'OID A · Stud · VÄGG-999 · 2,000 mm · offset 0 mm'
     expect(cut).toHaveAccessibleName(expected)
     expect(cut).toHaveAttribute('title', expected)
 
     await userEvent.tab()
     expect(cut).toHaveFocus()
     await userEvent.tab()
-    expect(segments(bars()[0])[1]).toHaveAccessibleName(/^OID C · Nogging · GOLV-999 · 1,500 mm · offset 2,000$/)
+    expect(segments(bars()[0])[1]).toHaveAccessibleName(/^OID C · Nogging · GOLV-999 · 1,500 mm · offset 2,000 mm$/)
   })
 
   // S16
@@ -132,7 +135,7 @@ describe('CuttingPanel show in 3D', () => {
     const onShowInModel = vi.fn()
     render(<Panel boards={S01} onShowInModel={onShowInModel} />)
     const cut = segments(bars()[0])[1]
-    expect(cut).toHaveAccessibleName('OID C · Nogging · GOLV-999 · 1,500 mm · offset 2,000')
+    expect(cut).toHaveAccessibleName('OID C · Nogging · GOLV-999 · 1,500 mm · offset 2,000 mm')
     const button = within(cut).getByRole('button', { name: 'Show OID C in 3D' })
     await userEvent.click(button)
     expect(onShowInModel).toHaveBeenLastCalledWith({ oids: ['C'], primary: 'C' })

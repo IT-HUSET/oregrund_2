@@ -1,14 +1,23 @@
 .board-list {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  padding: 16px;
+  gap: 16px;
   font-size: 14px;
+}
+
+.board-list__section {
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
 }
 
 .board-list__message {
   margin: 0;
-  padding: 24px 16px;
+  padding: 24px 20px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
   color: var(--text-muted);
 }
 
@@ -17,12 +26,12 @@
   flex-wrap: wrap;
   align-items: baseline;
   gap: 8px 16px;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
 .board-list__heading h2 {
   margin: 0;
-  font-size: 16px;
+  font-size: 17px;
 }
 
 .board-list__totals {
@@ -42,9 +51,9 @@
 }
 
 .board-list__warning {
-  margin: 0 0 8px;
-  padding: 6px 10px;
-  border-radius: 6px;
+  margin: 0 0 12px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
   background: var(--warning-bg);
   color: var(--warning-text);
 }
@@ -62,7 +71,7 @@
 
 .board-list__table th,
 .board-list__table td {
-  padding: 4px 12px 4px 0;
+  padding: 7px 12px;
   border-top: 1px solid var(--border);
   text-align: left;
   vertical-align: top;
@@ -73,6 +82,28 @@
   white-space: nowrap;
 }
 
+.board-list__table thead th {
+  border-top: 0;
+  border-bottom: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Zebra stripes make it easier to follow a row across the table. */
+.board-list__table tbody tr:nth-child(even) {
+  background: var(--row-stripe);
+}
+
+.board-list__table tbody tr:hover {
+  background: var(--row-hover);
+}
+
+.board-list__table tbody tr:first-child > * {
+  border-top: 0;
+}
+
 .board-list__table .board-list__num {
   text-align: right;
 }
@@ -80,7 +111,7 @@
 .board-list__pieces thead th {
   position: sticky;
   top: 0;
-  background: var(--bg);
+  background: var(--surface);
 }
 
 .board-list__sort,
@@ -88,8 +119,15 @@
   padding: 0;
   border: 0;
   background: none;
+  box-shadow: none;
+  color: inherit;
+  font-size: inherit;
   font-weight: inherit;
   text-align: inherit;
+}
+
+.board-list__sort:hover:not(:disabled) {
+  color: var(--text);
 }
 
 .board-list__sort-icon {
@@ -99,12 +137,17 @@
 }
 
 .board-list__group {
-  color: #0969da;
+  color: var(--accent-text);
   text-decoration: underline;
-  text-underline-offset: 2px;
+  text-decoration-color: color-mix(in srgb, var(--accent-text) 40%, transparent);
+  text-underline-offset: 3px;
 }
 
-.board-list__row--active {
+.board-list__group:hover:not(:disabled) {
+  text-decoration-color: currentColor;
+}
+
+.board-list__table tbody tr.board-list__row--active {
   background: var(--highlight-bg);
 }
 
@@ -121,12 +164,6 @@
   background: var(--warning-bg);
   color: var(--warning-text);
   font-size: 12px;
-}
-
-@media (prefers-color-scheme: dark) {
-  .board-list__group {
-    color: #4493f8;
-  }
 }
 
 .board-list__show {

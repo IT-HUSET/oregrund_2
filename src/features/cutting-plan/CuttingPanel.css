@@ -1,20 +1,29 @@
 .cutting {
   display: flex;
   flex-direction: column;
-  gap: 24px;
-  padding: 16px;
+  gap: 16px;
   font-size: 14px;
+}
+
+.cutting__section {
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
 }
 
 .cutting__message {
   margin: 0;
-  padding: 24px 16px;
+  padding: 24px 20px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
   color: var(--text-muted);
 }
 
 .cutting__section h2 {
-  margin: 0 0 8px;
-  font-size: 16px;
+  margin: 0 0 12px;
+  font-size: 17px;
 }
 
 .cutting__heading {
@@ -56,8 +65,9 @@
 
 .cutting__stat dd {
   margin: 0;
-  font-size: 18px;
-  font-weight: 600;
+  font-size: 22px;
+  font-weight: 650;
+  letter-spacing: -0.01em;
 }
 
 .cutting__table {
@@ -69,7 +79,7 @@
 
 .cutting__table th,
 .cutting__table td {
-  padding: 4px 12px 4px 0;
+  padding: 7px 12px;
   border-top: 1px solid var(--border);
   text-align: left;
   vertical-align: top;
@@ -80,12 +90,36 @@
   white-space: nowrap;
 }
 
+.cutting__table thead th {
+  border-top: 0;
+  border-bottom: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+/* Zebra stripes make it easier to follow a row across the table. */
+.cutting__table tbody tr:nth-child(even) {
+  background: var(--row-stripe);
+}
+
+.cutting__table tbody tr:hover {
+  background: var(--row-hover);
+}
+
+.cutting__table tbody tr:first-child > * {
+  border-top: 0;
+}
+
 .cutting__table .cutting__num {
   text-align: right;
 }
 
 .cutting__group + .cutting__group {
-  margin-top: 16px;
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
 }
 
 .cutting__boards {
@@ -96,7 +130,7 @@
 
 .cutting__board {
   display: grid;
-  grid-template-columns: 4em minmax(0, 1fr) 7em auto;
+  grid-template-columns: 5.5em minmax(0, 1fr) 7em auto;
   align-items: center;
   gap: 8px;
   font-variant-numeric: tabular-nums;
@@ -114,12 +148,12 @@
 
 .cutting__bar {
   display: flex;
-  height: 24px;
+  height: 26px;
   margin: 0;
   padding: 0;
   list-style: none;
-  border: 1px solid var(--border);
-  border-radius: 3px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
   overflow: hidden;
 }
 
@@ -129,7 +163,7 @@
   align-items: center;
   min-width: 0;
   overflow: hidden;
-  border-right: 1px solid var(--bg);
+  border-right: 1px solid var(--surface);
   background: var(--cut-a);
   color: var(--cut-text);
   font-size: 11px;
@@ -144,7 +178,7 @@
 }
 
 .cutting__cut:focus-visible {
-  outline: 2px solid #0969da;
+  outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
 
@@ -158,6 +192,7 @@
   border: 0;
   border-radius: 0;
   background: none;
+  box-shadow: none;
   color: inherit;
   font-size: inherit;
 }
@@ -171,7 +206,7 @@
 }
 
 .cutting__cut-button:focus-visible {
-  outline: 2px solid #0969da;
+  outline: 2px solid var(--focus);
   outline-offset: -2px;
 }
 
@@ -203,7 +238,7 @@
 
 @media (max-width: 600px) {
   .cutting__board {
-    grid-template-columns: 3em minmax(0, 1fr) auto;
+    grid-template-columns: 5em minmax(0, 1fr) auto;
   }
 
   .cutting__board-waste {

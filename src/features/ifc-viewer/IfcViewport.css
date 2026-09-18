@@ -19,6 +19,12 @@
   gap: 8px;
 }
 
+.viewport__controls button {
+  background: color-mix(in srgb, var(--surface) 88%, transparent);
+  backdrop-filter: blur(6px);
+  box-shadow: var(--shadow);
+}
+
 .viewport--message {
   display: grid;
   place-items: center;
