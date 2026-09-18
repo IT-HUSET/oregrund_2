@@ -1,0 +1,278 @@
+{
+  "38": {
+    "expressId": 38,
+    "ifcTypeName": "IfcBeam",
+    "attributes": {
+      "expressID": 38,
+      "type": 753842376,
+      "GlobalId": {
+        "value": "1S097T84g9UZ_RGyVyqOCC",
+        "type": 1,
+        "name": "IFCGLOBALLYUNIQUEID"
+      },
+      "Name": {
+        "value": "FX1 Rörbalk 45x182 C24",
+        "type": 1,
+        "name": "IFCLABEL"
+      },
+      "Description": null,
+      "ObjectType": null,
+      "ObjectPlacement": {
+        "value": 37,
+        "type": 5
+      },
+      "Representation": {
+        "value": 36,
+        "type": 5
+      },
+      "Tag": {
+        "value": "900001",
+        "type": 1,
+        "name": "IFCIDENTIFIER"
+      },
+      "PredefinedType": {
+        "type": 3,
+        "value": "BEAM"
+      }
+    },
+    "propertyDefinitions": [
+      {
+        "expressID": 52,
+        "type": 1451395588,
+        "GlobalId": {
+          "value": "1ObR77e76zK7AN88UpFV5A",
+          "type": 1,
+          "name": "IFCGLOBALLYUNIQUEID"
+        },
+        "Name": {
+          "value": "Pset_BeamCommon",
+          "type": 1,
+          "name": "IFCLABEL"
+        },
+        "Description": null,
+        "HasProperties": [
+          {
+            "expressID": 50,
+            "type": 3650150729,
+            "Name": {
+              "value": "Reference",
+              "type": 1,
+              "name": "IFCIDENTIFIER"
+            },
+            "Description": null,
+            "NominalValue": {
+              "value": "45x182",
+              "type": 1,
+              "name": "IFCIDENTIFIER"
+            },
+            "Unit": null
+          },
+          {
+            "expressID": 51,
+            "type": 3650150729,
+            "Name": {
+              "value": "Span",
+              "type": 1,
+              "name": "IFCIDENTIFIER"
+            },
+            "Description": null,
+            "NominalValue": {
+              "type": 4,
+              "_internalValue": "1200.",
+              "_representationValue": 1200,
+              "name": "IFCPOSITIVELENGTHMEASURE"
+            },
+            "Unit": null
+          }
+        ]
+      },
+      {
+        "expressID": 57,
+        "type": 1883228015,
+        "GlobalId": {
+          "value": "1laKuc1cDHXEDJYaQhQX_W",
+          "type": 1,
+          "name": "IFCGLOBALLYUNIQUEID"
+        },
+        "Name": {
+          "value": "BaseQuantities",
+          "type": 1,
+          "name": "IFCLABEL"
+        },
+        "Description": null,
+        "MethodOfMeasurement": null,
+        "Quantities": [
+          {
+            "expressID": 54,
+            "type": 931644368,
+            "Name": {
+              "value": "Length",
+              "type": 1,
+              "name": "IFCLABEL"
+            },
+            "Description": null,
+            "Unit": null,
+            "LengthValue": {
+              "type": 4,
+              "_internalValue": "1200.",
+              "_representationValue": 1200,
+              "name": "IFCLENGTHMEASURE"
+            },
+            "Formula": null
+          },
+          {
+            "expressID": 55,
+            "type": 2405470396,
+            "Name": {
+              "value": "GrossVolume",
+              "type": 1,
+              "name": "IFCLABEL"
+            },
+            "Description": null,
+            "Unit": null,
+            "VolumeValue": {
+              "type": 4,
+              "_internalValue": "0.009828",
+              "_representationValue": 0.009828,
+              "name": "IFCVOLUMEMEASURE"
+            },
+            "Formula": null
+          },
+          {
+            "expressID": 56,
+            "type": 825690147,
+            "Name": {
+              "value": "GrossWeight",
+              "type": 1,
+              "name": "IFCLABEL"
+            },
+            "Description": null,
+            "Unit": null,
+            "WeightValue": {
+              "type": 4,
+              "_internalValue": "4.4226",
+              "_representationValue": 4.4226,
+              "name": "IFCMASSMEASURE"
+            },
+            "Formula": null
+          }
+        ]
+      }
+    ]
+  },
+  "47": {
+    "expressId": 47,
+    "ifcTypeName": "IfcBuildingElementProxy",
+    "attributes": {
+      "expressID": 47,
+      "type": 1095909175,
+      "GlobalId": {
+        "value": "3jsqx6C7phDVOOvHsNZxV9",
+        "type": 1,
+        "name": "IFCGLOBALLYUNIQUEID"
+      },
+      "Name": {
+        "value": "Dosa hög",
+        "type": 1,
+        "name": "IFCLABEL"
+      },
+      "Description": null,
+      "ObjectType": null,
+      "ObjectPlacement": {
+        "value": 42,
+        "type": 5
+      },
+      "Representation": {
+        "value": 46,
+        "type": 5
+      },
+      "Tag": {
+        "value": "900002",
+        "type": 1,
+        "name": "IFCIDENTIFIER"
+      },
+      "PredefinedType": null
+    },
+    "propertyDefinitions": []
+  },
+  "unitAssignment": {
+    "expressID": 10,
+    "type": 180925521,
+    "Units": [
+      {
+        "expressID": 6,
+        "type": 448429030,
+        "Dimensions": {
+          "value": 0,
+          "type": 5
+        },
+        "UnitType": {
+          "type": 3,
+          "value": "LENGTHUNIT"
+        },
+        "Prefix": {
+          "type": 3,
+          "value": "MILLI"
+        },
+        "Name": {
+          "type": 3,
+          "value": "METRE"
+        }
+      },
+      {
+        "expressID": 7,
+        "type": 448429030,
+        "Dimensions": {
+          "value": 0,
+          "type": 5
+        },
+        "UnitType": {
+          "type": 3,
+          "value": "AREAUNIT"
+        },
+        "Prefix": null,
+        "Name": {
+          "type": 3,
+          "value": "SQUARE_METRE"
+        }
+      },
+      {
+        "expressID": 8,
+        "type": 448429030,
+        "Dimensions": {
+          "value": 0,
+          "type": 5
+        },
+        "UnitType": {
+          "type": 3,
+          "value": "VOLUMEUNIT"
+        },
+        "Prefix": null,
+        "Name": {
+          "type": 3,
+          "value": "CUBIC_METRE"
+        }
+      },
+      {
+        "expressID": 9,
+        "type": 448429030,
+        "Dimensions": {
+          "value": 0,
+          "type": 5
+        },
+        "UnitType": {
+          "type": 3,
+          "value": "MASSUNIT"
+        },
+        "Prefix": {
+          "type": 3,
+          "value": "KILO"
+        },
+        "Name": {
+          "type": 3,
+          "value": "GRAM"
+        }
+      }
+    ]
+  }
+}
