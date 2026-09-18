@@ -1,0 +1,76 @@
+BASCASE FÖR VIRKESINKÖP
+
+Referensfil: output/base_case_procurement.json
+Indata: output/drawing_datapoints.json
+Prislista: pricing/hornbach_c24_catalog.json
+
+SYFTE
+
+Detta scenario är en avsiktligt enkel och ineffektiv baslinje. Det visar vad
+virkesinköpet kostar om varje enskild trädel i ritningsunderlaget får en egen,
+ny inköpt planka. Basfallet ska senare jämföras med en kapoptimerad lösning,
+där flera trädelar kan kapas ur samma inköpta planka.
+
+VAD SOM HÄNDER FÖR VARJE TRÄDEL
+
+1. Programmet läser varje post i "timber_members" i
+   output/drawing_datapoints.json.
+
+2. För varje post kontrolleras följande krav mot prislistans produkter:
+   - material måste vara samma
+   - bredd och höjd måste vara exakt samma
+   - hållfasthetsklass måste vara samma, till exempel C24
+   - inköpt längd måste vara minst lika lång som den önskade kaplängden
+
+3. Om flera produkter uppfyller kraven väljs den kortaste. Exempel: om en
+   del behöver 3 100 mm 45x95 C24 väljs en 3 300 mm produkt framför en
+   3 600 mm produkt, om båda finns i katalogen.
+
+4. En enskild ny planka köps för varje byggdel. Även om två eller flera delar
+   skulle få plats i samma planka köps de separat i detta scenario.
+
+5. Spill per del beräknas som:
+
+   inköpt längd - erforderlig längd
+
+   Någon sågklingebredd (kerf) läggs inte på i basfallet. Parametern är satt
+   till 0 mm för att isolera effekten av att inte samordna kapning.
+
+6. Kostnad per del är priset för den valda plankan. Kostnaden summeras per
+   produkt till "order_lines" i referensfilen.
+
+VIKTIGA ANTAGANDEN
+
+- Ingen planka delas mellan två byggdelar.
+- Ingen återanvändning av spill eller restbitar sker.
+- Den kortaste kompatibla längden används när ett alternativ finns.
+- Frakt, leveransavgift och kvantitetsrabatter ingår inte.
+- Priserna inkluderar moms enligt prislistan.
+- Detta är en beräkning och inte en inköpsorder.
+- Pris och lagerstatus måste kontrolleras hos leverantören innan en verklig
+  beställning skapas.
+
+RESULTAT I REFERENSFILEN
+
+"coverage" visar hur stor andel av ritningens trädelar som kunde prissättas
+med pilotkatalogen. "unpriced_members" innehåller de delar som saknar en
+kompatibel produkt, exempelvis när dimensionen eller hållfasthetsklassen inte
+finns i katalogen.
+
+"totals" visar total kostnad, nödvändig längd, köpt längd och spill för de
+prissatta delarna. I den aktuella körningen omfattar basfallet 251 av 731
+trädelar. Kostnaden är 71 388,44 SEK, inköpt längd är 1 113,6 m och beräknat
+spill är 548,296 m, eller 49,24 procent av den inköpta längden.
+
+"order_lines" är den konkreta inköpssammanställningen. Varje rad anger vald
+produkt, antal plankor, vilka byggdelar den representerar, nödvändig längd,
+köpt längd, spill och radkostnad.
+
+NÄSTA JÄMFÖRELSE
+
+Nästa scenario ska använda samma prislista men tillåta att flera kaplängder
+placeras i en inköpt planka. Optimeringen ska göras separat för varje
+kombination av material, dimension och hållfasthetsklass och ska ta hänsyn
+till sågklingebredd. Skillnaden mellan det optimerade scenariot och detta
+basfall visar möjlig besparing i antal plankor, inköpt längd, spill och
+kostnad.
