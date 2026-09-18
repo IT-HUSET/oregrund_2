@@ -26,3 +26,5 @@ dist-ssr
 # Model exports: confidential customer data (see docs/specs/000-project-foundation.md §8)
 *.ifc
 components.xml
+# ...except hand-authored, anonymised test fixtures
+!src/**/__fixtures__/*.ifc
