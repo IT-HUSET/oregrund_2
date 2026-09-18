@@ -7,6 +7,7 @@ import { createBrowserIfcApi } from './features/ifc-viewer/createIfcApi.ts'
 import { ElementInfoPanel } from './features/ifc-viewer/ElementInfoPanel.tsx'
 import { IfcLoadError, loadIfcModel, type IfcLoadErrorKind, type LoadedIfcModel } from './features/ifc-viewer/ifcLoader.ts'
 import { IfcViewport } from './features/ifc-viewer/IfcViewport.tsx'
+import lindbacksLogo from './assets/lindbacks-logo.svg'
 import './App.css'
 
 const ERROR_MESSAGES: Record<IfcLoadErrorKind, string> = {
@@ -130,7 +131,10 @@ function App() {
   return (
     <div className="app">
       <header className="app__header">
-        <h1>Labbithuset</h1>
+        <div className="app__brand">
+          <img className="app__logo" src={lindbacksLogo} alt="Lindbäcks" />
+          <h1>Labbithuset</h1>
+        </div>
         <div className="app__file">
           {shown && <span className="app__file-name">{shown.fileName}</span>}
           <button type="button" onClick={() => inputRef.current?.click()}>

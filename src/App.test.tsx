@@ -84,6 +84,7 @@ describe('App', () => {
   it('renders the app', () => {
     render(<App />)
     expect(screen.getByRole('heading', { level: 1, name: 'Labbithuset' })).toBeInTheDocument()
+    expect(within(screen.getByRole('banner')).getByRole('img', { name: 'Lindbäcks' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Choose IFC file' })).toBeInTheDocument()
     expect(screen.getByLabelText('IFC file')).toHaveAttribute('accept', '.ifc')
   })
