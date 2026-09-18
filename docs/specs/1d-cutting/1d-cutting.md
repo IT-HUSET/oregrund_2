@@ -42,6 +42,7 @@
 | Stock list | `svenskt_tra_virkessortiment.csv` (see Stock Table), bundled in `src/domain/1dcutting/`, with no prices and unlimited quantity per article. It replaces the earlier `svensk_trastandard_matt_tradslag.csv`, which is not used. |
 | Objective | Minimise total waste length, using a deterministic heuristic (First Fit Decreasing plus choice of stock length). Proven optimality isn't required. |
 | Cutting parameters (2026-09-18, revised) | **Kerf = 4.5 mm per saw cut** (`DEFAULT_KERF_MM`), passed to `planCuts` as an option so tests can use other values. Still no end trim and no reusable offcuts: everything left on a board counts as waste. This supersedes "kerf = 0". See Kerf Model. |
+| Stock source (2026-09-18, lumberyards) | The planner's stock now comes from the **lumberyard chosen in the Cutting tab** (`docs/specs/lumberyards/lumberyards.md`): three bundled yard CSVs in `src/domain/1dcutting/lumberyards/`, each with a finite quantity (`antal`) per article. `planCuts` never uses an article more times than its `StockArticle.quantity` (absent = unlimited, which gives exactly the plans above) and adds the not-planned reason **`out-of-stock`**: the yard carries the profile and grade in a long enough length, but every such board is used. `too-long` and `no-matching-stock` are judged against the chosen yard. `SVENSKT_TRA_SORTIMENT` is no longer a planner input; it stays as the validation reference for the yard files. This supersedes "unlimited quantity per article" in the Stock list row. |
 
 
 ## Domain Model

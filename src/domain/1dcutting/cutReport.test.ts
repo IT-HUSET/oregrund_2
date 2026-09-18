@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { makeBoard } from '../boards/__fixtures__/boards.ts'
+import type { Board } from '../boards/board.ts'
 import { buildCutReport } from './cutReport.ts'
-import { computeCuttingPlan } from './traceability.ts'
+import { DEFAULT_LUMBERYARD_ID, LUMBERYARDS } from './lumberyards/lumberyards.ts'
+import { computeCuttingPlan as planAt } from './traceability.ts'
+
+// Plans against the default yard (Standard brädgård).
+const computeCuttingPlan = (boards: readonly Board[]) => planAt(boards, LUMBERYARDS.find((y) => y.id === DEFAULT_LUMBERYARD_ID)!)
 
 const BOARDS = [
   makeBoard('1 Stud 45x95 C24', 2000, { oid: 'A', element: 'VÄGG-999' }),
@@ -26,15 +31,15 @@ describe('buildCutReport', () => {
     const [studs] = report.groups
     expect(studs.boards.map((b) => [b.number, b.article.lengthMm, b.wasteMm])).toEqual([
       [1, 3600, 100],
-      [2, 3000, 0],
+      [2, 3300, 300],
     ])
     expect(studs.boards[0].cuts).toEqual([
       { seq: 1, oid: 'A', pieceCode: '1', role: 'Stud', element: 'VÄGG-999', lengthMm: 2000, fromMm: 0, toMm: 2000 },
-      { seq: 2, oid: 'C', pieceCode: '3', role: 'Nogging', element: 'GOLV-999', lengthMm: 1500, fromMm: 2000, toMm: 3500 },
+      { seq: 2, oid: 'C', pieceCode: '3', role: 'Nogging', element: 'GOLV-999', lengthMm: 1500, fromMm: 2004.5, toMm: 3504.5 },
     ])
     expect(studs.boards[1].cuts.map((c) => [c.seq, c.oid, c.fromMm, c.toMm])).toEqual([
       [1, 'B', 0, 2000],
-      [2, 'D', 2000, 3000],
+      [2, 'D', 2004.5, 3004.5],
     ])
   })
 

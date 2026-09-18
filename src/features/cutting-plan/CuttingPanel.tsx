@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatCount, formatMetres, formatMm } from '../../components/format.ts'
+import { LumberyardPicker } from '../../components/LumberyardPicker.tsx'
 import type { SkippedBoard } from '../../domain/1dcutting/boardDemands.ts'
 import { buildCutReport } from '../../domain/1dcutting/cutReport.ts'
 import { profileLabel, type BoardPlan, type CuttingPlan, type OrderLine } from '../../domain/1dcutting/cutting.ts'
-import { groupBoards, NOT_PLANNED_REASONS, type PlanResult } from '../../domain/1dcutting/traceability.ts'
+import type { Lumberyard } from '../../domain/1dcutting/lumberyards/lumberyards.ts'
+import { groupBoards, notPlannedText, type PlanResult } from '../../domain/1dcutting/traceability.ts'
 import type { Board } from '../../domain/boards/board.ts'
 import { CutReport } from './CutReport.tsx'
 import './CuttingPanel.css'
@@ -24,9 +26,14 @@ export interface CutTarget {
 interface CuttingPanelProps {
   // null while the board list is being built.
   boards: readonly Board[] | null
-  // The plan of `boards` (computeCuttingPlan); null while the board list is being built.
+  // The plan of `boards` against `lumberyard` (computeCuttingPlan); null while the board list is
+  // being built.
   plan: PlanResult | null
   error?: boolean
+  // The yards to choose from, the chosen one, and how to choose another.
+  lumberyards: readonly Lumberyard[]
+  lumberyard: Lumberyard
+  onSelectLumberyard(id: string): void
   // Enables the "Show in 3D" actions.
   onShowInModel?(trace: ModelTrace): void
   cutTarget?: CutTarget | null
@@ -39,21 +46,50 @@ const COLLAPSE_ABOVE = 20
 
 const MISSING_ELEMENT = 'Element not found in the model'
 
-export function CuttingPanel({ boards, plan, error = false, onShowInModel, cutTarget = null }: CuttingPanelProps) {
-  if (error) return <p className="cutting__message">The board list could not be built from this model.</p>
-  if (!boards || !plan) return <p className="cutting__message">Planning cuts…</p>
-  if (boards.length === 0) return <p className="cutting__message">No boards found in this model.</p>
-  return <CuttingPlanView boards={boards} result={plan} onShowInModel={onShowInModel} cutTarget={cutTarget} />
+export function CuttingPanel({
+  boards,
+  plan,
+  error = false,
+  lumberyards,
+  lumberyard,
+  onSelectLumberyard,
+  onShowInModel,
+  cutTarget = null,
+}: CuttingPanelProps) {
+  let body
+  if (error) body = <p className="cutting__message">The board list could not be built from this model.</p>
+  else if ('error' in lumberyard)
+    body = <p className="cutting__message">The stock list for {lumberyard.name} could not be read.</p>
+  else if (!boards || !plan) body = <p className="cutting__message">Planning cuts…</p>
+  else if (boards.length === 0) body = <p className="cutting__message">No boards found in this model.</p>
+  else
+    body = (
+      <CuttingPlanView
+        boards={boards}
+        result={plan}
+        yardName={lumberyard.name}
+        onShowInModel={onShowInModel}
+        cutTarget={cutTarget}
+      />
+    )
+  return (
+    <div className="cutting-panel">
+      <LumberyardPicker lumberyards={lumberyards} value={lumberyard.id} onChange={onSelectLumberyard} />
+      {body}
+    </div>
+  )
 }
 
 interface CuttingPlanViewProps {
   boards: readonly Board[]
   result: PlanResult
+  // The chosen lumberyard, for the report header and out-of-stock reasons.
+  yardName: string
   onShowInModel: ShowInModel
   cutTarget: CutTarget | null
 }
 
-function CuttingPlanView({ boards, result, onShowInModel, cutTarget }: CuttingPlanViewProps) {
+function CuttingPlanView({ boards, result, yardName, onShowInModel, cutTarget }: CuttingPlanViewProps) {
   const boardByOid = useMemo(() => new Map(boards.map((b) => [b.oid, b])), [boards])
   const rootRef = useRef<HTMLDivElement>(null)
   const reportButtonRef = useRef<HTMLButtonElement>(null)
@@ -90,11 +126,13 @@ function CuttingPlanView({ boards, result, onShowInModel, cutTarget }: CuttingPl
   const { plan, skipped } = result
   const { totals } = plan
   const notPlanned = skipped.length + plan.unplaced.length
+  const outOfStock = plan.unplaced.filter((u) => u.reason === 'out-of-stock').length
 
   if (reportOpen) {
     return (
       <CutReport
         report={buildCutReport(plan, skipped, boards)}
+        lumberyardName={yardName}
         onClose={() => {
           returnFocus.current = true
           setReportOpen(false)
@@ -117,6 +155,7 @@ function CuttingPlanView({ boards, result, onShowInModel, cutTarget }: CuttingPl
         <dl className="cutting__totals">
           <Stat label="Pieces placed" value={formatCount(totals.placedPieces)} />
           <Stat label="Not planned" value={formatCount(notPlanned)} />
+          <Stat label="Out of stock" value={formatCount(outOfStock)} />
           <Stat label="Boards to buy" value={formatCount(plan.boards.length)} />
           <Stat label="Purchased" value={formatMetres(totals.purchasedMm)} />
           <Stat label="Required" value={formatMetres(totals.requiredMm)} />
@@ -149,6 +188,12 @@ function CuttingPlanView({ boards, result, onShowInModel, cutTarget }: CuttingPl
                 <th scope="col" className="cutting__num">
                   Total
                 </th>
+                <th scope="col" className="cutting__num">
+                  In stock
+                </th>
+                <th scope="col" className="cutting__num">
+                  Left after order
+                </th>
                 {onShowInModel && (
                   <th scope="col">
                     <span className="visually-hidden">3D</span>
@@ -175,7 +220,10 @@ function CuttingPlanView({ boards, result, onShowInModel, cutTarget }: CuttingPl
         />
       )}
 
-      {notPlanned > 0 && <NotPlanned plan={plan} skipped={skipped} boardByOid={boardByOid} />}
+      {/* Keyed by yard so the list's collapsed state is judged afresh for each yard's plan. */}
+      {notPlanned > 0 && (
+        <NotPlanned key={yardName} plan={plan} skipped={skipped} boardByOid={boardByOid} yardName={yardName} />
+      )}
     </div>
   )
 }
@@ -197,6 +245,7 @@ interface OrderRowProps {
 
 function OrderRow({ line: { article, quantity }, plan, onShowInModel }: OrderRowProps) {
   const label = `${profileLabel(article.profile)} ${article.grade} · ${formatMm(article.lengthMm)} mm`
+  const left = article.quantity === undefined ? undefined : article.quantity - quantity
   return (
     <tr>
       <td>{profileLabel(article.profile)}</td>
@@ -205,6 +254,12 @@ function OrderRow({ line: { article, quantity }, plan, onShowInModel }: OrderRow
       <td className="cutting__num">{formatMm(article.lengthMm)}</td>
       <td className="cutting__num">{formatCount(quantity)}</td>
       <td className="cutting__num">{formatMetres(article.lengthMm * quantity)}</td>
+      {/* Unlimited stock (no quantity) shows a dash. */}
+      <td className="cutting__num">{article.quantity === undefined ? '—' : formatCount(article.quantity)}</td>
+      <td className="cutting__num">
+        {left === undefined ? '—' : formatCount(left)}
+        {left === 0 && <span className="cutting__sold-out"> sold out</span>}
+      </td>
       {onShowInModel && (
         <td>
           <button
@@ -390,6 +445,7 @@ interface NotPlannedProps {
   plan: CuttingPlan
   skipped: readonly SkippedBoard[]
   boardByOid: ReadonlyMap<string, Board>
+  yardName: string
 }
 
 interface NotPlannedRow {
@@ -398,14 +454,14 @@ interface NotPlannedRow {
   reason: string
 }
 
-function NotPlanned({ plan, skipped, boardByOid }: NotPlannedProps) {
+function NotPlanned({ plan, skipped, boardByOid, yardName }: NotPlannedProps) {
   const rows: NotPlannedRow[] = [
     ...plan.unplaced.map((u) => ({
       oid: u.demand.ifcTag,
       board: boardByOid.get(u.demand.ifcTag),
-      reason: NOT_PLANNED_REASONS[u.reason],
+      reason: notPlannedText(u.reason, yardName),
     })),
-    ...skipped.map((s) => ({ oid: s.board.oid, board: s.board, reason: NOT_PLANNED_REASONS[s.reason] })),
+    ...skipped.map((s) => ({ oid: s.board.oid, board: s.board, reason: notPlannedText(s.reason, yardName) })),
   ].sort((a, b) => a.oid.localeCompare(b.oid, 'en', { numeric: true }))
   const [expanded, setExpanded] = useState(rows.length <= COLLAPSE_ABOVE)
 

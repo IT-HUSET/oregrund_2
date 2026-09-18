@@ -1,4 +1,4 @@
-import { normaliseProfile, profileLabel, type Finish, type Profile, type StockArticle } from './cutting.ts'
+import { normaliseGrade, normaliseProfile, profileLabel, type Finish, type Profile, type StockArticle } from './cutting.ts'
 import sortimentCsv from './svenskt_tra_virkessortiment.csv?raw'
 
 const COLUMNS = ['typ', 'utförande', 'tjocklek_mm', 'bredd_mm', 'hållfasthetsklass', 'sorteringsklass', 'längd_mm', 'källa']
@@ -57,11 +57,50 @@ export function parseStockCsv(csv: string): StockArticle[] {
   )
 }
 
+const YARD_COLUMNS = ['typ', 'utförande', 'tjocklek_mm', 'bredd_mm', 'hållfasthetsklass', 'sorteringsklass', 'längd_mm', 'antal', 'källa']
+
+// Parses a lumberyard's stock list: one `artikel` row per article, with the quantity on hand in
+// `antal`. Throws on the first malformed row, naming its 1-based line number.
+export function parseYardCsv(csv: string): StockArticle[] {
+  const lines = csv.replace(/^\uFEFF/, '').split(/\r?\n/)
+  const header = lines[0]?.split(';').map((c) => c.trim())
+  if (!header || header.length !== YARD_COLUMNS.length || YARD_COLUMNS.some((c, i) => header[i] !== c)) {
+    throw new Error(`Stock CSV line 1: expected the header ${YARD_COLUMNS.join(';')}`)
+  }
+
+  const articles: StockArticle[] = []
+  const seen = new Set<string>()
+  lines.slice(1).forEach((line, index) => {
+    if (line.trim() === '') return
+    const lineNo = index + 2
+    const fail = (message: string): never => {
+      throw new Error(`Stock CSV line ${lineNo}: ${message}`)
+    }
+    const [typ, finish, thickness, width, grade = '', sorting = '', length, antal = ''] = line.split(';').map((c) => c.trim())
+    if (typ !== 'artikel') fail(`unknown typ '${typ}'`)
+    if (!FINISHES.includes(finish)) fail(`unknown utförande '${finish}'`)
+    const profile = normaliseProfile(positive(thickness, 'tjocklek_mm', fail), positive(width, 'bredd_mm', fail))
+    if (!/^C\d+$/.test(grade)) fail(`invalid hållfasthetsklass '${grade}'`)
+    if (sorting !== '' && !(/^T\d+$/.test(sorting) && normaliseGrade(sorting) === grade)) {
+      fail(`sorteringsklass '${sorting}' does not match hållfasthetsklass '${grade}'`)
+    }
+    const lengthMm = positive(length, 'längd_mm', fail)
+    if (!/^\d+$/.test(antal)) fail(`antal must be a whole number >= 0, got '${antal}'`)
+
+    const id = `${profileLabel(profile)}-${grade}-${lengthMm}`
+    if (seen.has(id)) fail(`duplicate article ${id}`)
+    seen.add(id)
+    articles.push({ id, finish: finish as Finish, profile, grade, lengthMm, quantity: Number(antal) })
+  })
+  return articles
+}
+
 function positive(value: string | undefined, column: string, fail: (message: string) => never): number {
   const n = value ? Number(value) : NaN
   if (!Number.isFinite(n) || n <= 0) fail(`${column} must be a positive number, got '${value ?? ''}'`)
   return n
 }
 
-// The Svenskt Trä timber assortment bundled with the app.
-export const SVENSKT_TRA_SORTIMENT: readonly StockArticle[] = parseStockCsv(sortimentCsv)
+// The Svenskt Trä timber assortment: the reference the lumberyards' stock lists are checked
+// against (no longer planner input). Pure, so a build that doesn't use it drops it.
+export const SVENSKT_TRA_SORTIMENT: readonly StockArticle[] = /* @__PURE__ */ parseStockCsv(sortimentCsv)

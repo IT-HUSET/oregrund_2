@@ -1,0 +1,33 @@
+.yard-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+  font-size: 14px;
+}
+
+.yard-picker label {
+  font-weight: 600;
+}
+
+.yard-picker select {
+  min-width: min(100%, 260px);
+  padding: 6px 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-sm);
+  font: inherit;
+}
+
+.yard-picker select:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+}
+
+@media print {
+  .yard-picker {
+    display: none;
+  }
+}

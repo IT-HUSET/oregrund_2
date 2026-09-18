@@ -28,6 +28,8 @@ export interface StockArticle {
   // Always a C class.
   grade: string
   lengthMm: number
+  // Boards the yard has on hand; absent means unlimited.
+  quantity?: number
 }
 
 export interface PlannedCut {
@@ -50,7 +52,9 @@ export interface BoardPlan {
   wasteMm: number
 }
 
-export type UnplacedReason = 'no-matching-stock' | 'too-long' | 'invalid-length'
+// 'out-of-stock': the stock carries the profile and grade in a length long enough for the piece,
+// but every such board is already used.
+export type UnplacedReason = 'no-matching-stock' | 'too-long' | 'invalid-length' | 'out-of-stock'
 
 export interface UnplacedDemand {
   demand: CutDemand

@@ -2,6 +2,7 @@ import { act, render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import * as THREE from 'three'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { buildLumberyards } from './domain/1dcutting/lumberyards/lumberyards.ts'
 import type { Board } from './domain/boards/board.ts'
 import { makeBoard } from './domain/boards/__fixtures__/boards.ts'
 import type { ElementInfo } from './domain/ifc/elementInfo.ts'
@@ -307,15 +308,19 @@ describe('App tabs', () => {
     expect(tab('Kapning')).toHaveFocus()
 
     await userEvent.keyboard('{ArrowRight}')
+    expect(tab('Brädgårdar')).toHaveAttribute('aria-selected', 'true')
+    expect(tab('Brädgårdar')).toHaveFocus()
+
+    await userEvent.keyboard('{ArrowRight}')
     expect(tab('3D-modell')).toHaveAttribute('aria-selected', 'true')
     expect(tab('3D-modell')).toHaveFocus()
 
     await userEvent.keyboard('{ArrowLeft}')
-    expect(tab('Kapning')).toHaveAttribute('aria-selected', 'true')
+    expect(tab('Brädgårdar')).toHaveAttribute('aria-selected', 'true')
     await userEvent.keyboard('{Home}')
     expect(tab('3D-modell')).toHaveAttribute('aria-selected', 'true')
     await userEvent.keyboard('{End}')
-    expect(tab('Kapning')).toHaveAttribute('aria-selected', 'true')
+    expect(tab('Brädgårdar')).toHaveAttribute('aria-selected', 'true')
   })
 
   // S05: a new file resets the board list (filter and sort)
@@ -415,13 +420,13 @@ const cutOids = () =>
 // 1D cutting: the Cutting tab in the app shell
 describe('App Cutting tab', () => {
   // S18
-  it('shows three tabs and shares one board lookup between Boards and Cutting', async () => {
+  it('shows four tabs and shares one board lookup between Boards and Cutting', async () => {
     const model = fakeModel('model-a', beamInfo, boardsA)
     loadMock.mockResolvedValueOnce(model)
     render(<App />)
     await loadAndPick()
     const viewport = screen.getByTestId('viewport')
-    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['3D-modell', 'Brädor', 'Kapning'])
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['3D-modell', 'Brädor', 'Kapning', 'Brädgårdar'])
 
     await userEvent.click(tab('Kapning'))
     const panel = screen.getByRole('tabpanel', { name: 'Kapning' })
@@ -483,16 +488,16 @@ const traced = [
 const idOf = (oid: string) => String(traced.find((b) => b.oid === oid)!.expressId)
 
 // A model whose root has one pickable child per board, and whose element info follows the pick.
-function tracedModel(name = 'model-a'): LoadedIfcModel {
-  const model = fakeModel(name, beamInfo, traced)
-  for (const board of traced) {
+function tracedModel(name = 'model-a', boards: Board[] = traced): LoadedIfcModel {
+  const model = fakeModel(name, beamInfo, boards)
+  for (const board of boards) {
     const child = new THREE.Object3D()
     child.name = board.oid
     child.userData.expressID = board.expressId
     model.root.add(child)
   }
   vi.mocked(model.getElementInfo).mockImplementation(async (id) => {
-    const board = traced.find((b) => b.expressId === id)!
+    const board = boards.find((b) => b.expressId === id)!
     return { ...beamInfo, expressId: id, name: board.name, tag: board.oid }
   })
   return model
@@ -617,5 +622,175 @@ describe('App cut traceability', () => {
     await vi.waitFor(() => expect(cutting()).toHaveTextContent('The cutting plan could not be computed for this model.'))
     expect(viewport()).toHaveAttribute('data-selected', String(dup[0].expressId))
     expect(console.error).toHaveBeenCalledWith('Failed to compute the cutting plan', expect.any(Error))
+  })
+})
+
+// Lumberyards: the yard chosen in Kapning drives the plan and the info panel
+const yardSelect = () => within(kapning()).getByRole('combobox', { name: 'Lumberyard' })
+const kapningStat = (label: string) => within(kapning()).getByText(label, { selector: 'dt' }).nextElementSibling?.textContent
+const orderLengths = () =>
+  within(within(kapning()).getByRole('table', { name: 'Order list' }))
+    .getAllByRole('row')
+    .slice(1)
+    .map((row) => within(row).getAllByRole('cell')[3].textContent)
+
+describe('App lumberyards', () => {
+  // S07
+  it('plans against the chosen yard and remembers it for the session, without storage', async () => {
+    const setItem = vi.spyOn(Storage.prototype, 'setItem')
+    // 6000 and 7000 mm are longer than anything Standard stocks; Har allt has 6000 and 7200.
+    const longA = [makeBoard('1 Stud 45x95 C24', 6000, { oid: 'L1' }), makeBoard('2 Stud 45x95 C24', 2000, { oid: 'L2' })]
+    const longB = [makeBoard('9 Joist 45x195 C24', 7000, { oid: 'L3' })]
+    loadMock.mockResolvedValueOnce(fakeModel('model-a', beamInfo, longA)).mockResolvedValueOnce(fakeModel('model-b', beamInfo, longB))
+    const { unmount } = render(<App />)
+    await choose('a.ifc')
+    await expectModel('model-a')
+    await userEvent.click(tab('Kapning'))
+    await within(kapning()).findByRole('heading', { name: 'Waste report' })
+
+    expect(yardSelect()).toHaveDisplayValue('Standard brädgård')
+    expect(kapningStat('Pieces placed')).toBe('1')
+    expect(orderLengths()).toEqual(['3,000'])
+
+    await userEvent.selectOptions(yardSelect(), 'Har allt brädgård')
+    expect(kapningStat('Pieces placed')).toBe('2')
+    expect(kapningStat('Not planned')).toBe('0')
+    expect(orderLengths()).toEqual(['8,400'])
+
+    await userEvent.click(tab('3D-modell'))
+    await userEvent.click(tab('Kapning'))
+    expect(yardSelect()).toHaveDisplayValue('Har allt brädgård')
+
+    await choose('b.ifc')
+    await expectModel('model-b')
+    await vi.waitFor(() => expect(cutOids()).toEqual(['L3', 'waste']))
+    expect(yardSelect()).toHaveDisplayValue('Har allt brädgård')
+    expect(orderLengths()).toEqual(['7,200'])
+
+    // A reload starts from the default again; nothing was stored.
+    unmount()
+    loadMock.mockResolvedValueOnce(fakeModel('model-a', beamInfo, longA))
+    render(<App />)
+    await choose('a.ifc')
+    await expectModel('model-a')
+    await userEvent.click(tab('Kapning'))
+    await within(kapning()).findByRole('heading', { name: 'Waste report' })
+    expect(yardSelect()).toHaveDisplayValue('Standard brädgård')
+    expect(setItem).not.toHaveBeenCalled()
+    expect(localStorage.length + sessionStorage.length).toBe(0)
+  })
+
+  // S09
+  it('updates the info panel and the cutting report when the yard is switched', async () => {
+    // Standard has one 45x45 C24 5400 board: the second 5147 mm piece is out of stock there.
+    const scarce = [makeBoard('1 Stud 45x45 C24', 5147, { oid: 'P' }), makeBoard('2 Stud 45x45 C24', 5147, { oid: 'Q' })]
+    loadMock.mockResolvedValueOnce(tracedModel('model-a', scarce))
+    render(<App />)
+    await choose('a.ifc')
+    await expectModel('model-a')
+    await userEvent.click(tab('Kapning'))
+    await userEvent.selectOptions(await within(kapning()).findByRole('combobox', { name: 'Lumberyard' }), 'Har allt brädgård')
+    await userEvent.click(tab('3D-modell'))
+    await userEvent.click(screen.getByRole('button', { name: 'pick Q' }))
+    await vi.waitFor(() => expect(cutting()).toHaveTextContent('45x45 C24 · 5,400 mm · board'))
+
+    await userEvent.click(tab('Kapning'))
+    await userEvent.selectOptions(yardSelect(), 'Standard brädgård')
+    await userEvent.click(tab('3D-modell'))
+    expect(cutting()).toHaveTextContent('Not planned: Out of stock at Standard brädgård')
+    expect(within(cutting()).queryByRole('button', { name: 'Show in cutting list' })).not.toBeInTheDocument()
+
+    await userEvent.click(tab('Kapning'))
+    await userEvent.click(within(kapning()).getByRole('button', { name: 'Cutting report' }))
+    expect(within(kapning()).getByText('Lumberyard: Standard brädgård')).toBeInTheDocument()
+  })
+
+  // Edge case: a trace made before a yard switch never shows the old plan's pieces
+  it('drops a traced board or order line when the yard is switched', async () => {
+    await openCutting()
+    await userEvent.click(within(kapning()).getByRole('button', { name: 'Show 45x95 C24 · 3,600 mm in 3D' }))
+    expect(screen.getByRole('heading', { name: '2 pieces highlighted' })).toBeInTheDocument()
+    expect(viewport()).toHaveAttribute('data-related', `${idOf('A')},${idOf('C')}`)
+
+    await userEvent.click(tab('Kapning'))
+    await userEvent.selectOptions(yardSelect(), 'Har allt brädgård')
+    await userEvent.click(tab('3D-modell'))
+    expect(screen.queryByRole('heading', { name: '2 pieces highlighted' })).not.toBeInTheDocument()
+    expect(viewport()).toHaveAttribute('data-related', '')
+    expect(viewport()).toHaveAttribute('data-ghost', 'false')
+  })
+
+  // Stock view: Brädgårdar lists the chosen yard's stock and shares the choice with Kapning
+  it('shows the chosen yard’s stock in Brädgårdar, sharing the yard with Kapning', async () => {
+    await openCutting()
+    expect(orderLengths()).toEqual(['3,600', '3,300'])
+    await userEvent.click(within(kapning()).getByRole('button', { name: 'Show 45x95 C24 · 3,600 mm in 3D' }))
+    expect(viewport()).toHaveAttribute('data-related', `${idOf('A')},${idOf('C')}`)
+
+    await userEvent.click(tab('Brädgårdar'))
+    const yards = () => screen.getByRole('tabpanel', { name: 'Brädgårdar' })
+    const yardsSelect = () => within(yards()).getByRole('combobox', { name: 'Lumberyard' })
+    expect(yardsSelect()).toHaveDisplayValue('Standard brädgård')
+    expect(within(yards()).getByRole('table', { name: 'Stock at Standard brädgård' })).toBeInTheDocument()
+
+    await userEvent.selectOptions(yardsSelect(), 'Har allt brädgård')
+    expect(within(yards()).getByRole('table', { name: 'Stock at Har allt brädgård' })).toBeInTheDocument()
+    // The same yard change as in Kapning: the trace of the old plan is dropped.
+    expect(viewport()).toHaveAttribute('data-related', '')
+    expect(viewport()).toHaveAttribute('data-ghost', 'false')
+
+    await userEvent.click(tab('Kapning'))
+    expect(yardSelect()).toHaveDisplayValue('Har allt brädgård')
+    expect(orderLengths()).toEqual(['6,600'])
+
+    await userEvent.selectOptions(yardSelect(), 'Standard brädgård')
+    await userEvent.click(tab('Brädgårdar'))
+    expect(yardsSelect()).toHaveDisplayValue('Standard brädgård')
+  })
+
+  // Stock view: the stock does not depend on the model, so Brädgårdar does not build the board list
+  it('does not build the board list when only Brädgårdar is opened', async () => {
+    const model = fakeModel('model-a', beamInfo, boardsA)
+    loadMock.mockResolvedValueOnce(model)
+    render(<App />)
+    await choose('a.ifc')
+    await expectModel('model-a')
+
+    await userEvent.click(tab('Brädgårdar'))
+    expect(await screen.findByRole('table', { name: 'Stock at Standard brädgård' })).toBeInTheDocument()
+    expect(model.getBoards).not.toHaveBeenCalled()
+
+    await userEvent.click(tab('Kapning'))
+    await within(kapning()).findByRole('heading', { name: 'Waste report' })
+    expect(model.getBoards).toHaveBeenCalledTimes(1)
+  })
+
+  // S10
+  it('keeps the tabs working when a yard’s stock list cannot be read', async () => {
+    const header = 'typ;utförande;tjocklek_mm;bredd_mm;hållfasthetsklass;sorteringsklass;längd_mm;antal;källa'
+    const yards = buildLumberyards([
+      { id: 'standard', name: 'Standard brädgård', csv: `${header}\nartikel;hyvlat;45;95;C24;T2;3600;5;x` },
+      { id: 'bad', name: 'Trasiga gården', csv: 'not a stock list' },
+      { id: 'other', name: 'Andra gården', csv: `${header}\nartikel;hyvlat;45;95;C24;T2;4200;5;x` },
+    ])
+    loadMock.mockResolvedValueOnce(tracedModel())
+    render(<App lumberyards={yards} />)
+    await choose('a.ifc')
+    await expectModel('model-a')
+    await userEvent.click(tab('Kapning'))
+    await userEvent.selectOptions(await within(kapning()).findByRole('combobox', { name: 'Lumberyard' }), 'Trasiga gården')
+    expect(within(kapning()).getByText('The stock list for Trasiga gården could not be read.')).toBeInTheDocument()
+    expect(within(kapning()).queryByRole('heading', { name: 'Waste report' })).not.toBeInTheDocument()
+
+    await userEvent.click(tab('Brädor'))
+    expect(await screen.findByRole('table', { name: 'Pieces' })).toBeInTheDocument()
+    await userEvent.click(tab('3D-modell'))
+    await userEvent.click(screen.getByRole('button', { name: 'pick C' }))
+    expect(await screen.findByRole('heading', { name: '3 Nogging 45x95 C24' })).toBeInTheDocument()
+
+    await userEvent.click(tab('Kapning'))
+    await userEvent.selectOptions(yardSelect(), 'Andra gården')
+    expect(within(kapning()).queryByText(/could not be read/)).not.toBeInTheDocument()
+    expect(orderLengths()).toEqual(['4,200'])
   })
 })

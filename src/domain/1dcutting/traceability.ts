@@ -3,8 +3,8 @@
 import type { Board } from '../boards/board.ts'
 import { boardsToDemands, type SkipReason, type SkippedBoard } from './boardDemands.ts'
 import { profileLabel, type BoardPlan, type CuttingPlan, type StockArticle, type UnplacedReason } from './cutting.ts'
+import type { Lumberyard } from './lumberyards/lumberyards.ts'
 import { planCuts } from './planCuts.ts'
-import { SVENSKT_TRA_SORTIMENT } from './stock.ts'
 
 export type PlanResult = { plan: CuttingPlan; skipped: SkippedBoard[] } | { error: unknown }
 
@@ -14,8 +14,14 @@ export const NOT_PLANNED_REASONS: Record<NotPlannedReason, string> = {
   'no-matching-stock': 'No matching stock article',
   'too-long': 'Longer than the longest stock length',
   'invalid-length': 'Invalid length',
+  'out-of-stock': 'Out of stock',
   unparsed: 'Name could not be read',
   'no-length': 'Missing length',
+}
+
+// The reason as shown to the user; out of stock names the yard, e.g. "Out of stock at Standard brädgård".
+export function notPlannedText(reason: NotPlannedReason, yardName: string): string {
+  return reason === 'out-of-stock' ? `${NOT_PLANNED_REASONS[reason]} at ${yardName}` : NOT_PLANNED_REASONS[reason]
 }
 
 // Where one piece sits in the cutting plan.
@@ -57,12 +63,13 @@ export interface BoardGroup {
   boards: { plan: BoardPlan; index: number }[]
 }
 
-// Boards → demands → plan against the bundled stock. A thrown planning error (e.g. duplicate
-// OIDs) is returned, not rethrown.
-export function computeCuttingPlan(boards: readonly Board[]): PlanResult {
+// Boards → demands → plan against the yard's stock. A thrown planning error (e.g. duplicate
+// OIDs) or an unreadable stock list is returned, not thrown.
+export function computeCuttingPlan(boards: readonly Board[], yard: Lumberyard): PlanResult {
+  if ('error' in yard) return { error: new Error(yard.error) }
   try {
     const { demands, skipped } = boardsToDemands(boards)
-    return { plan: planCuts(demands, SVENSKT_TRA_SORTIMENT), skipped }
+    return { plan: planCuts(demands, yard.stock), skipped }
   } catch (error) {
     return { error }
   }

@@ -252,3 +252,20 @@
     display: none;
   }
 }
+
+.cutting-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.cutting__sold-out {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}

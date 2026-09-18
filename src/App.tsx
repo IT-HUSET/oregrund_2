@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
+import { DEFAULT_LUMBERYARD_ID, LUMBERYARDS, type Lumberyard } from './domain/1dcutting/lumberyards/lumberyards.ts'
 import { buildTraceIndex, computeCuttingPlan } from './domain/1dcutting/traceability.ts'
 import { isBoardType, type Board } from './domain/boards/board.ts'
 import type { ElementInfo } from './domain/ifc/elementInfo.ts'
@@ -9,6 +10,7 @@ import { ElementInfoPanel, type CuttingTrace, type HighlightedSet } from './feat
 import { IfcLoadError, loadIfcModel, type IfcLoadErrorKind, type LoadedIfcModel } from './features/ifc-viewer/ifcLoader.ts'
 import { IfcViewport } from './features/ifc-viewer/IfcViewport.tsx'
 import { EMPTY_SELECTION, type ViewportSelection } from './features/ifc-viewer/selection.ts'
+import { LumberyardsPanel } from './features/lumberyards/LumberyardsPanel.tsx'
 import lindbacksLogo from './assets/lindbacks-logo.svg'
 import './App.css'
 
@@ -26,19 +28,25 @@ interface ShownModel {
   seq: number
 }
 
-type Tab = 'model' | 'boards' | 'cutting'
+type Tab = 'model' | 'boards' | 'cutting' | 'lumberyards'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'model', label: '3D-modell' },
   { id: 'boards', label: 'Brädor' },
   { id: 'cutting', label: 'Kapning' },
+  { id: 'lumberyards', label: 'Brädgårdar' },
 ]
 
 // The board list of one model load (ShownModel.seq), or the failure to build it. Keyed by seq
 // rather than the model object so a replaced model is not kept alive.
 type BoardResult = { seq: number; boards: Board[] } | { seq: number; error: true }
 
-function App() {
+interface AppProps {
+  // The yards the Cutting tab can plan against and the Lumberyards tab lists; the bundled ones by default.
+  lumberyards?: readonly Lumberyard[]
+}
+
+function App({ lumberyards = LUMBERYARDS }: AppProps) {
   const [shown, setShown] = useState<ShownModel | null>(null)
   const [loadingFile, setLoadingFile] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -48,6 +56,10 @@ function App() {
   const [tab, setTab] = useState<Tab>('model')
   const [boardResult, setBoardResult] = useState<BoardResult | null>(null)
   const [cutTarget, setCutTarget] = useState<CutTarget | null>(null)
+  // The chosen lumberyard, shared by Kapning and Brädgårdar: kept in memory for the session (across
+  // tabs and model loads), never stored.
+  const [lumberyardId, setLumberyardId] = useState(DEFAULT_LUMBERYARD_ID)
+  const lumberyard = lumberyards.find((y) => y.id === lumberyardId) ?? lumberyards[0]
   const inputRef = useRef<HTMLInputElement>(null)
   const tabRefs = useRef<Partial<Record<Tab, HTMLButtonElement | null>>>({})
   // Only the most recent file load and the most recent pick may update the UI.
@@ -65,7 +77,7 @@ function App() {
   // Build the board list once per loaded model, the first time Boards or Cutting is shown or an
   // element is picked (its Cutting section needs the plan).
   useEffect(() => {
-    if ((tab === 'model' && selectedId === null) || !shown) return
+    if ((tab !== 'boards' && tab !== 'cutting' && selectedId === null) || !shown) return
     const { seq } = shown
     if (boardsRequestedFor.current === seq) return
     boardsRequestedFor.current = seq
@@ -85,8 +97,8 @@ function App() {
   const boards = currentBoards && 'boards' in currentBoards ? currentBoards.boards : null
   const boardsError = currentBoards !== null && 'error' in currentBoards
 
-  // The cutting plan and the lookups that link it to the 3D model, once per board list.
-  const plan = useMemo(() => (boards ? computeCuttingPlan(boards) : null), [boards])
+  // The cutting plan and the lookups that link it to the 3D model, once per board list and yard.
+  const plan = useMemo(() => (boards ? computeCuttingPlan(boards, lumberyard) : null), [boards, lumberyard])
   const traceIndex = useMemo(() => (plan && 'plan' in plan ? buildTraceIndex(plan.plan, plan.skipped) : null), [plan])
   const boardByOid = useMemo(() => new Map((boards ?? []).map((b) => [b.oid, b])), [boards])
   const boardById = useMemo(() => new Map((boards ?? []).map((b) => [b.expressId, b])), [boards])
@@ -179,6 +191,14 @@ function App() {
   const showInCuttingList = useCallback((oid: string) => {
     setCutTarget({ oid, seq: ++cutTargetSeq.current })
     setTab('cutting')
+  }, [])
+
+  // A traced set (board or order line) belongs to the old yard's plan, so a yard change drops it;
+  // the primary element stays selected and its cutting context follows the new plan.
+  const selectLumberyard = useCallback((id: string) => {
+    setLumberyardId(id)
+    setHighlighted(null)
+    setSelection((s) => ({ ...s, related: [], ghostOthers: false }))
   }, [])
 
   const selectPiece = useCallback((oid: string) => showInModel({ oids: [oid], primary: oid }), [showInModel])
@@ -284,6 +304,7 @@ function App() {
             info={info}
             loading={selectedId !== null && info === null}
             trace={trace}
+            lumberyardName={lumberyard.name}
             highlighted={highlighted}
             onSelectPiece={selectPiece}
             onShowInCuttingList={showInCuttingList}
@@ -319,9 +340,26 @@ function App() {
               boards={boards}
               plan={plan}
               error={boardsError}
+              lumberyards={lumberyards}
+              lumberyard={lumberyard}
+              onSelectLumberyard={selectLumberyard}
               onShowInModel={showInModel}
               cutTarget={cutTarget}
             />
+          </div>
+        )}
+        {shown && (
+          <div
+            className="app__boards"
+            id="panel-lumberyards"
+            role="tabpanel"
+            aria-labelledby="tab-lumberyards"
+            hidden={tab !== 'lumberyards'}
+          >
+            {/* Stateless, so it is only rendered while shown: a hidden stock table would re-render on every pick. */}
+            {tab === 'lumberyards' && (
+              <LumberyardsPanel lumberyards={lumberyards} lumberyard={lumberyard} onSelectLumberyard={selectLumberyard} />
+            )}
           </div>
         )}
       </main>

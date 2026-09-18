@@ -15,22 +15,33 @@ import {
 const EPS = 1e-6
 
 interface OpenBoard {
-  capacity: number
+  // The article this board is cut from; reserved while the board is open.
+  article: StockArticle
   used: number
   pieces: CutDemand[]
 }
 
 interface Candidate {
-  boards: { article: StockArticle; pieces: CutDemand[]; used: number }[]
+  boards: OpenBoard[]
+  // Pieces left over because every long enough article is used up.
+  outOfStock: CutDemand[]
+  // Sum of the placed pieces' lengths.
+  placed: number
   waste: number
   openingLength: number
 }
 
+// Boards left of each article of one group while one candidate is built. Unlimited articles
+// (no quantity) never run out.
+type Remaining = Map<StockArticle, number>
+
 // Plans which stock boards to buy and how to cut them: per (profile, grade) group, First Fit
-// Decreasing for every stock length as the opening length, each board downsized to the shortest
-// article that fits, keeping the candidate with the least waste. Every saw cut removes `kerfMm`
-// (see the spec's Kerf Model). Deterministic; does not mutate its inputs. Throws when two demands
-// share an ifcTag or the kerf is not a finite number >= 0.
+// Decreasing for every in-stock length as the opening length, each board downsized to the shortest
+// article that fits and is still in stock, keeping the candidate that places the most length, then
+// has the least waste. An article is never used more times than its `quantity` (absent means
+// unlimited); the longest pieces claim scarce stock first. Every saw cut removes `kerfMm` (see the
+// spec's Kerf Model). Deterministic; does not mutate its inputs. Throws when two demands share an
+// ifcTag or the kerf is not a finite number >= 0.
 export function planCuts(
   demands: readonly CutDemand[],
   stock: readonly StockArticle[],
@@ -85,11 +96,13 @@ export function planCuts(
 
     fitting.sort((a, b) => b.lengthMm - a.lengthMm || compareTags(a.ifcTag, b.ifcTag))
     let best: Candidate | null = null
-    for (const { lengthMm } of articles) {
-      const candidate = firstFitDecreasing(fitting, articles, lengthMm, kerf)
+    for (const opening of articles) {
+      if (opening.quantity === 0) continue
+      const candidate = firstFitDecreasing(fitting, articles, opening, kerf)
       if (!best || isBetter(candidate, best)) best = candidate
     }
-    for (const board of best!.boards) boards.push(toBoardPlan(board.article, board.pieces, board.used, kerf))
+    for (const board of best?.boards ?? []) boards.push(toBoardPlan(board.article, board.pieces, board.used, kerf))
+    for (const demand of best?.outOfStock ?? fitting) unplaced.push({ demand, reason: 'out-of-stock' })
   }
 
   boards.sort(compareBoards)
@@ -131,40 +144,63 @@ export function planCuts(
   }
 }
 
-// `pieces` is sorted by length descending. A piece longer than the opening length opens a board
-// of the shortest article that fits it. Adding a piece to a board adds one kerf before it.
+// `pieces` is sorted by length descending. A piece that fits no open board opens a board of the
+// opening article, or of the shortest in-stock article that fits it when the opening article is
+// too short or used up. When no article long enough is left, the piece is out of stock: every such
+// article is held by a board of longer pieces. Adding a piece to a board adds one kerf before it.
 function firstFitDecreasing(
   pieces: readonly CutDemand[],
   articles: readonly StockArticle[],
-  openingLength: number,
+  opening: StockArticle,
   kerf: number,
 ): Candidate {
+  const remaining: Remaining = new Map(articles.map((a) => [a, a.quantity ?? Infinity]))
   const open: OpenBoard[] = []
+  const outOfStock: CutDemand[] = []
   for (const piece of pieces) {
-    const board = open.find((b) => b.used + piece.lengthMm + b.pieces.length * kerf <= b.capacity + EPS)
+    const board = open.find((b) => b.used + piece.lengthMm + b.pieces.length * kerf <= b.article.lengthMm + EPS)
     if (board) {
       board.used += piece.lengthMm
       board.pieces.push(piece)
-    } else {
-      const capacity = piece.lengthMm <= openingLength + EPS ? openingLength : shortestFitting(articles, piece.lengthMm).lengthMm
-      open.push({ capacity, used: piece.lengthMm, pieces: [piece] })
+      continue
     }
+    const article =
+      piece.lengthMm <= opening.lengthMm + EPS && remaining.get(opening)! > 0
+        ? opening
+        : shortestInStock(articles, remaining, piece.lengthMm)
+    if (!article) {
+      outOfStock.push(piece)
+      continue
+    }
+    remaining.set(article, remaining.get(article)! - 1)
+    open.push({ article, used: piece.lengthMm, pieces: [piece] })
   }
-  const boards = open.map((b) => ({
-    article: shortestFitting(articles, b.used + (b.pieces.length - 1) * kerf),
-    pieces: b.pieces,
-    used: b.used,
-  }))
-  return { boards, waste: sum(boards.map((b) => b.article.lengthMm - b.used)), openingLength }
+
+  // Downsize each board, in opening order, to the shortest in-stock article that fits its pieces
+  // plus the kerf between them. Its own article is released first, so one always fits.
+  for (const board of open) {
+    remaining.set(board.article, remaining.get(board.article)! + 1)
+    board.article = shortestInStock(articles, remaining, board.used + (board.pieces.length - 1) * kerf)!
+    remaining.set(board.article, remaining.get(board.article)! - 1)
+  }
+
+  return {
+    boards: open,
+    outOfStock,
+    placed: sum(open.map((b) => b.used)),
+    waste: sum(open.map((b) => b.article.lengthMm - b.used)),
+    openingLength: opening.lengthMm,
+  }
 }
 
-// `neededMm` is the pieces plus the kerf between them.
-function shortestFitting(articles: readonly StockArticle[], neededMm: number): StockArticle {
-  return articles.find((a) => neededMm <= a.lengthMm + EPS)!
+// `neededMm` is the pieces plus the kerf between them. `articles` is ascending by length.
+function shortestInStock(articles: readonly StockArticle[], remaining: Remaining, neededMm: number): StockArticle | undefined {
+  return articles.find((a) => neededMm <= a.lengthMm + EPS && remaining.get(a)! > 0)
 }
 
-// Least waste, then fewest boards, then the smallest opening length.
+// Most placed length, then least waste, then fewest boards, then the smallest opening length.
 function isBetter(a: Candidate, b: Candidate): boolean {
+  if (Math.abs(a.placed - b.placed) > EPS) return a.placed > b.placed
   if (Math.abs(a.waste - b.waste) > EPS) return a.waste < b.waste
   if (a.boards.length !== b.boards.length) return a.boards.length < b.boards.length
   return a.openingLength < b.openingLength

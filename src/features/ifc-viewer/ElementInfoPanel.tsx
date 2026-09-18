@@ -1,5 +1,5 @@
 import { formatCount, formatMm } from '../../components/format.ts'
-import { NOT_PLANNED_REASONS, type TraceStatus } from '../../domain/1dcutting/traceability.ts'
+import { notPlannedText, type TraceStatus } from '../../domain/1dcutting/traceability.ts'
 import type { ElementInfo, PropertyEntry } from '../../domain/ifc/elementInfo.ts'
 import { entryLabel, setLabel, valueLabel } from './ifcLabels.ts'
 import './ElementInfoPanel.css'
@@ -18,6 +18,8 @@ interface ElementInfoPanelProps {
   loading?: boolean
   // Omitted for elements that aren't boards.
   trace?: CuttingTrace
+  // The lumberyard the plan is made against, named in an out-of-stock reason.
+  lumberyardName?: string
   highlighted?: HighlightedSet | null
   onSelectPiece?(oid: string): void
   onShowInCuttingList?(oid: string): void
@@ -27,6 +29,7 @@ export function ElementInfoPanel({
   info,
   loading = false,
   trace,
+  lumberyardName = '',
   highlighted = null,
   onSelectPiece,
   onShowInCuttingList,
@@ -67,7 +70,12 @@ export function ElementInfoPanel({
           )}
 
           {trace && trace.kind !== 'not-a-board' && (
-            <CuttingSection trace={trace} onSelectPiece={onSelectPiece} onShowInCuttingList={onShowInCuttingList} />
+            <CuttingSection
+              trace={trace}
+              lumberyardName={lumberyardName}
+              onSelectPiece={onSelectPiece}
+              onShowInCuttingList={onShowInCuttingList}
+            />
           )}
         </>
       ) : (
@@ -79,16 +87,17 @@ export function ElementInfoPanel({
 
 interface CuttingSectionProps {
   trace: Exclude<CuttingTrace, { kind: 'not-a-board' }>
+  lumberyardName: string
   onSelectPiece?(oid: string): void
   onShowInCuttingList?(oid: string): void
 }
 
-function CuttingSection({ trace, onSelectPiece, onShowInCuttingList }: CuttingSectionProps) {
+function CuttingSection({ trace, lumberyardName, onSelectPiece, onShowInCuttingList }: CuttingSectionProps) {
   let body
   if (trace.kind === 'pending') body = <p className="info-panel__empty">Planning cuts…</p>
   else if (trace.kind === 'error')
     body = <p className="info-panel__empty">The cutting plan could not be computed for this model.</p>
-  else if (trace.kind === 'not-planned') body = <p>Not planned: {NOT_PLANNED_REASONS[trace.reason]}</p>
+  else if (trace.kind === 'not-planned') body = <p>Not planned: {notPlannedText(trace.reason, lumberyardName)}</p>
   else {
     const loc = trace.location
     body = (

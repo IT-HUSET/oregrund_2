@@ -219,6 +219,132 @@ describe('planCuts', () => {
   })
 })
 
+// Lumberyards: stock with a quantity per article (lengths → quantities).
+function limited(profile: string, grade: string, quantities: Record<number, number>): StockArticle[] {
+  return Object.entries(quantities).map(([length, quantity]) => ({ ...stock(profile, grade, [Number(length)])[0], quantity }))
+}
+
+const bought = (plan: CuttingPlan) => plan.orderLines.map((l) => `${l.quantity} × ${l.article.id}`)
+
+describe('planCuts with limited stock', () => {
+  // Lumberyards S02
+  it('never exceeds the stock and gives the scarce board to the longest piece', () => {
+    const yard = limited('45x95', 'C24', { 5400: 1, 3000: 3 })
+    const demands = [demand('A', '45x95', 'C24', 5000), demand('B', '45x95', 'C24', 2600), demand('C', '45x95', 'C24', 2600)]
+    // With unlimited stock, B and C share one 5400 board.
+    expect(summary(planCuts(demands, stock('45x95', 'C24', [3000, 5400])))).toEqual([
+      '45x95-C24-5400: A@0',
+      '45x95-C24-5400: B@0 C@2604.5',
+    ])
+
+    const plan = planCuts(demands, yard)
+    expect(summary(plan)).toEqual(['45x95-C24-5400: A@0', '45x95-C24-3000: B@0', '45x95-C24-3000: C@0'])
+    expect(bought(plan)).toEqual(['1 × 45x95-C24-5400', '2 × 45x95-C24-3000'])
+    expect(plan.unplaced).toEqual([])
+  })
+
+  // Lumberyards S03
+  it('falls back to another in-stock length of the same profile and grade', () => {
+    const plan = planCuts([demand('P', '45x95', 'C24', 3500)], limited('45x95', 'C24', { 3600: 0, 4200: 2 }))
+    expect(summary(plan)).toEqual(['45x95-C24-4200: P@0'])
+    expect(bought(plan)).toEqual(['1 × 45x95-C24-4200'])
+  })
+
+  // Lumberyards S04
+  it('tells out of stock, too long and not carried apart, longest pieces first', () => {
+    const plan = planCuts(
+      [
+        demand('A', '45x95', 'C24', 4000),
+        demand('B', '45x95', 'C24', 3900),
+        demand('C', '45x95', 'C24', 2000),
+        demand('D', '45x95', 'C24', 6000),
+        demand('E', '45x95', 'C16', 2000),
+      ],
+      limited('45x95', 'C24', { 4200: 1, 3000: 10 }),
+    )
+    expect(summary(plan)).toEqual(['45x95-C24-4200: A@0', '45x95-C24-3000: C@0'])
+    expect(unplaced(plan)).toEqual(['B out-of-stock', 'D too-long', 'E no-matching-stock'])
+  })
+
+  it('treats a profile and grade stocked only at quantity 0 as out of stock', () => {
+    const plan = planCuts([demand('Z', '45x95', 'C24', 1000)], limited('45x95', 'C24', { 3000: 0 }))
+    expect(plan.boards).toEqual([])
+    expect(unplaced(plan)).toEqual(['Z out-of-stock'])
+  })
+
+  // Lumberyards S05
+  it('keeps its invariants on random input with limited stock', () => {
+    const start = performance.now()
+    const plan = checkLimitedStockInvariants(811, 400)
+    expect(performance.now() - start).toBeLessThan(1000)
+    for (const reason of ['out-of-stock', 'too-long', 'no-matching-stock']) {
+      expect(plan.unplaced.some((u) => u.reason === reason)).toBe(true)
+    }
+    // Small, scarce cases: out of stock, fallback lengths and downsizing that respects quantities.
+    for (let seed = 1; seed <= 300; seed++) checkLimitedStockInvariants(seed, 12)
+  })
+})
+
+// Plans random demands against random stock with quantities 0–5 and checks the plan invariants.
+function checkLimitedStockInvariants(seed: number, count: number): CuttingPlan {
+  const random = mulberry32(seed)
+  const profiles = ['45x95', '45x120', '45x145', '45x220', '22x95']
+  const grades = ['C24', 'C14', 'T2', 'C16']
+  const lengths = [2400, 3000, 3600, 4200, 4800, 5400, 6000]
+  const yard = profiles.flatMap((profile) =>
+    ['C24', 'C14'].flatMap((grade) =>
+      lengths
+        .filter(() => random() < 0.7)
+        .map((length) => limited(profile, grade, { [length]: Math.floor(random() * 6) })[0]),
+    ),
+  )
+  const demands = Array.from({ length: count }, (_, i) =>
+    demand(`T${i}`, profiles[Math.floor(random() * profiles.length)], grades[Math.floor(random() * grades.length)], 200 + random() * 6200),
+  )
+  const plan = planCuts(demands, yard)
+  const context = `seed ${seed}`
+
+  const tags = [...plan.boards.flatMap((b) => b.cuts.map((c) => c.ifcTag)), ...plan.unplaced.map((u) => u.demand.ifcTag)]
+  expect(tags.sort(), context).toEqual(demands.map((d) => d.ifcTag).sort())
+
+  const used = new Map<string, number>()
+  for (const board of plan.boards) used.set(board.article.id, (used.get(board.article.id) ?? 0) + 1)
+  const left = (a: StockArticle) => a.quantity! - (used.get(a.id) ?? 0)
+  for (const article of yard) expect(left(article), `${context} ${article.id}`).toBeGreaterThanOrEqual(0)
+  const sameGroup = (a: StockArticle, profile: { thicknessMm: number; widthMm: number }, grade: string) =>
+    a.profile.thicknessMm === profile.thicknessMm && a.profile.widthMm === profile.widthMm && a.grade === grade.replace('T2', 'C24')
+
+  const byTag = new Map(demands.map((d) => [d.ifcTag, d]))
+  for (const board of plan.boards) {
+    const betweenCuts = (board.cuts.length - 1) * plan.kerfPerCutMm
+    expect(board.usedMm + betweenCuts).toBeLessThanOrEqual(board.article.lengthMm + 1e-6)
+    expect(board.usedMm + board.kerfMm + board.offcutMm).toBeCloseTo(board.article.lengthMm)
+    board.cuts.slice(1).forEach((cut, i) => {
+      const previous = board.cuts[i]
+      expect(cut.offsetMm).toBeCloseTo(previous.offsetMm + previous.lengthMm + plan.kerfPerCutMm)
+    })
+    for (const cut of board.cuts) {
+      const d = byTag.get(cut.ifcTag)!
+      expect(sameGroup(board.article, d.profile, d.grade), context).toBe(true)
+    }
+    const swap = yard.filter(
+      (a) =>
+        sameGroup(a, board.article.profile, board.article.grade) &&
+        a.lengthMm < board.article.lengthMm &&
+        a.lengthMm >= board.usedMm + betweenCuts - 1e-6 &&
+        left(a) > 0,
+    )
+    expect(swap, `${context} ${board.article.id}`).toEqual([])
+  }
+
+  for (const { demand: d } of plan.unplaced.filter((u) => u.reason === 'out-of-stock')) {
+    const longEnough = yard.filter((a) => sameGroup(a, d.profile, d.grade) && a.lengthMm >= d.lengthMm)
+    expect(longEnough.length, `${context} ${d.ifcTag}`).toBeGreaterThan(0)
+    expect(longEnough.map(left), `${context} ${d.ifcTag}`).toEqual(longEnough.map(() => 0))
+  }
+  return plan
+}
+
 // Small seeded PRNG so the random test is reproducible without a dependency.
 function mulberry32(seed: number): () => number {
   let a = seed

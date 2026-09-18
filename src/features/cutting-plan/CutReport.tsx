@@ -5,13 +5,15 @@ import './CutReport.css'
 
 interface CutReportProps {
   report: CutReportData
+  // The yard the boards are bought from.
+  lumberyardName: string
   onClose(): void
 }
 
 const COLUMNS = 8
 
 // The factory cut list: one table per profile + grade, one row group per purchased board.
-export function CutReport({ report, onClose }: CutReportProps) {
+export function CutReport({ report, lumberyardName, onClose }: CutReportProps) {
   const headingRef = useRef<HTMLHeadingElement>(null)
   const { totals } = report
 
@@ -22,9 +24,12 @@ export function CutReport({ report, onClose }: CutReportProps) {
   return (
     <section className="cut-report" aria-labelledby="cut-report-heading">
       <div className="cut-report__header">
-        <h2 id="cut-report-heading" ref={headingRef} tabIndex={-1}>
-          Cutting report
-        </h2>
+        <div>
+          <h2 id="cut-report-heading" ref={headingRef} tabIndex={-1}>
+            Cutting report
+          </h2>
+          <p className="cut-report__yard">Lumberyard: {lumberyardName}</p>
+        </div>
         <div className="cut-report__actions">
           <button type="button" onClick={onClose}>
             Back to cutting plan

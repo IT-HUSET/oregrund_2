@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest'
 import { makeBoard } from '../boards/__fixtures__/boards.ts'
-import { buildTraceIndex, computeCuttingPlan, groupBoards, type PlanResult } from './traceability.ts'
+import { buildLumberyards, DEFAULT_LUMBERYARD_ID, LUMBERYARDS } from './lumberyards/lumberyards.ts'
+import { buildTraceIndex, computeCuttingPlan as planAt, groupBoards, notPlannedText, type PlanResult } from './traceability.ts'
+import type { Board } from '../boards/board.ts'
+
+// Plans against the default yard (Standard brädgård), which stocks every length these tests use.
+const standard = LUMBERYARDS.find((y) => y.id === DEFAULT_LUMBERYARD_ID)!
+const computeCuttingPlan = (boards: readonly Board[]) => planAt(boards, standard)
 
 const boards = [
   makeBoard('1 Stud 45x95 C24', 2000, { oid: 'A' }),
@@ -26,6 +32,39 @@ describe('computeCuttingPlan', () => {
   it('returns a planning error instead of throwing', () => {
     const result = computeCuttingPlan([makeBoard('1 Stud 45x95 C24', 1000, { oid: 'X' }), makeBoard('2 Stud 45x95 C24', 900, { oid: 'X' })])
     expect(result).toEqual({ error: expect.any(Error) })
+  })
+
+  // Lumberyards S04 + S09 (domain half): the plan and the trace follow the given yard
+  it('plans against the given yard and names it for out-of-stock pieces', () => {
+    const header = 'typ;utförande;tjocklek_mm;bredd_mm;hållfasthetsklass;sorteringsklass;längd_mm;antal;källa'
+    const [yard, unreadable] = buildLumberyards([
+      { id: 'test', name: 'Testgården', csv: `${header}\nartikel;hyvlat;45;95;C24;T2;4200;1;x\nartikel;hyvlat;45;95;C24;T2;3000;10;x` },
+      { id: 'bad', name: 'Trasiga gården', csv: 'nonsense' },
+    ])
+    const s04 = [
+      makeBoard('1 Stud 45x95 C24', 4000, { oid: 'A' }),
+      makeBoard('2 Stud 45x95 C24', 3900, { oid: 'B' }),
+      makeBoard('3 Nogging 45x95 C24', 2000, { oid: 'C' }),
+      makeBoard('4 Stud 45x95 C24', 6000, { oid: 'D' }),
+      makeBoard('5 Nogging 45x95 C16', 2000, { oid: 'E' }),
+    ]
+    const { plan, skipped } = planned(planAt(s04, yard))
+    expect(plan.boards.map((b) => `${b.article.id}: ${b.cuts.map((c) => c.ifcTag).join(' ')}`)).toEqual([
+      '45x95-C24-4200: A',
+      '45x95-C24-3000: C',
+    ])
+    const index = buildTraceIndex(plan, skipped)
+    expect(['B', 'D', 'E'].map((oid) => index.byOid(oid))).toEqual([
+      { kind: 'not-planned', reason: 'out-of-stock' },
+      { kind: 'not-planned', reason: 'too-long' },
+      { kind: 'not-planned', reason: 'no-matching-stock' },
+    ])
+    expect(notPlannedText('out-of-stock', yard.name)).toBe('Out of stock at Testgården')
+    expect(notPlannedText('too-long', yard.name)).toBe('Longer than the longest stock length')
+
+    // The same boards are all placed where the yard has enough stock.
+    expect(planned(planAt(s04.slice(0, 3), LUMBERYARDS[0])).plan.unplaced).toEqual([])
+    expect(planAt(s04, unreadable)).toEqual({ error: expect.objectContaining({ message: expect.stringMatching(/line 1/) }) })
   })
 })
 

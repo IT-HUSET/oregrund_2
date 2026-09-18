@@ -1,6 +1,8 @@
 import { render, screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { useState } from 'react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { buildLumberyards, DEFAULT_LUMBERYARD_ID, LUMBERYARDS, type Lumberyard } from '../../domain/1dcutting/lumberyards/lumberyards.ts'
 import { computeCuttingPlan } from '../../domain/1dcutting/traceability.ts'
 import type { Board } from '../../domain/boards/board.ts'
 import { makeBoard } from '../../domain/boards/__fixtures__/boards.ts'
@@ -13,8 +15,21 @@ const S01 = [
   makeBoard('4 Nogging 45x95 C24', 1000, { oid: 'D' }),
 ]
 
+// The default yard (Standard brädgård) stocks every article these tests plan with.
+const STANDARD = LUMBERYARDS.find((y) => y.id === DEFAULT_LUMBERYARD_ID)!
+const yardProps = { lumberyards: LUMBERYARDS, lumberyard: STANDARD, onSelectLumberyard: () => {} }
+
 function Panel({ boards, ...rest }: { boards: Board[]; onShowInModel?(t: ModelTrace): void; cutTarget?: CutTarget }) {
-  return <CuttingPanel boards={boards} plan={computeCuttingPlan(boards)} {...rest} />
+  return <CuttingPanel boards={boards} plan={computeCuttingPlan(boards, STANDARD)} {...yardProps} {...rest} />
+}
+
+// A panel whose yard can be switched, as App does.
+function YardSwitcher({ boards, yards, initial }: { boards: Board[]; yards: readonly Lumberyard[]; initial: string }) {
+  const [id, setId] = useState(initial)
+  const yard = yards.find((y) => y.id === id)!
+  return (
+    <CuttingPanel boards={boards} plan={computeCuttingPlan(boards, yard)} lumberyards={yards} lumberyard={yard} onSelectLumberyard={setId} />
+  )
 }
 
 const stat = (label: string) => screen.getByText(label, { selector: 'dt' }).nextElementSibling?.textContent
@@ -42,8 +57,8 @@ describe('CuttingPanel', () => {
 
     const order = within(screen.getByRole('table', { name: 'Order list' })).getAllByRole('row').slice(1)
     expect(order.map((row) => within(row).getAllByRole('cell').map((c) => c.textContent))).toEqual([
-      ['45x95', 'C24', 'hyvlat', '3,600', '1', '3.6 m'],
-      ['45x95', 'C24', 'hyvlat', '3,300', '1', '3.3 m'],
+      ['45x95', 'C24', 'hyvlat', '3,600', '1', '3.6 m', '25', '24'],
+      ['45x95', 'C24', 'hyvlat', '3,300', '1', '3.3 m', '10', '9'],
     ])
 
     expect(screen.getByRole('heading', { level: 3, name: '45x95 C24' })).toBeInTheDocument()
@@ -86,6 +101,8 @@ describe('CuttingPanel', () => {
     expect(cut).toHaveAccessibleName(expected)
     expect(cut).toHaveAttribute('title', expected)
 
+    await userEvent.tab()
+    expect(screen.getByRole('combobox', { name: 'Lumberyard' })).toHaveFocus()
     await userEvent.tab()
     expect(screen.getByRole('button', { name: 'Cutting report' })).toHaveFocus()
     await userEvent.tab()
@@ -133,11 +150,11 @@ describe('CuttingPanel', () => {
 
   // S17
   it('shows loading, empty and board-list error states', () => {
-    const { rerender } = render(<CuttingPanel boards={null} plan={null} />)
+    const { rerender } = render(<CuttingPanel boards={null} plan={null} {...yardProps} />)
     expect(screen.getByText('Planning cuts…')).toBeInTheDocument()
     rerender(<Panel boards={[]} />)
     expect(screen.getByText('No boards found in this model.')).toBeInTheDocument()
-    rerender(<CuttingPanel boards={null} plan={null} error />)
+    rerender(<CuttingPanel boards={null} plan={null} error {...yardProps} />)
     expect(screen.getByText('The board list could not be built from this model.')).toBeInTheDocument()
   })
 
@@ -180,8 +197,10 @@ describe('CuttingPanel show in 3D', () => {
   // S11 (b)
   it('disables the action for a cut whose element is not in the board list', () => {
     const boards = [makeBoard('1 Stud 45x95 C24', 1000, { oid: 'A' })]
-    const plan = computeCuttingPlan(boards)
-    render(<CuttingPanel boards={[makeBoard('9 Other 45x70 C24', 500, { oid: 'Z' })]} plan={plan} onShowInModel={() => {}} />)
+    const plan = computeCuttingPlan(boards, STANDARD)
+    render(
+      <CuttingPanel boards={[makeBoard('9 Other 45x70 C24', 500, { oid: 'Z' })]} plan={plan} onShowInModel={() => {}} {...yardProps} />,
+    )
     const button = screen.getByRole('button', { name: 'Show OID A in 3D' })
     expect(button).toBeDisabled()
     expect(button).toHaveAttribute('title', 'Element not found in the model')
@@ -211,6 +230,7 @@ describe('CuttingPanel cutting report', () => {
 
     const heading = screen.getByRole('heading', { level: 2, name: 'Cutting report' })
     expect(heading).toHaveFocus()
+    expect(screen.getByText('Lumberyard: Standard brädgård')).toBeInTheDocument()
     expect(screen.queryByRole('heading', { name: 'Cutting list' })).not.toBeInTheDocument()
     expect(screen.getByText('2 boards · 4 cuts')).toBeInTheDocument()
     expect(screen.getByText(/1 piece is not planned and is not in this report/)).toBeInTheDocument()
@@ -220,10 +240,10 @@ describe('CuttingPanel cutting report', () => {
     expect(rows.map((row) => [...row.children].map((c) => c.textContent))).toEqual([
       ['Board 1 · 3,600 mm hyvlat · 2 cuts · waste 100 mm'],
       ['1', 'A', '1', 'Stud', 'VÄGG-999', '2,000', '0', '2,000'],
-      ['2', 'C', '3', 'Nogging', 'GOLV-999', '1,500', '2,000', '3,500'],
-      ['Board 2 · 3,000 mm hyvlat · 2 cuts'],
+      ['2', 'C', '3', 'Nogging', 'GOLV-999', '1,500', '2,005', '3,505'],
+      ['Board 2 · 3,300 mm hyvlat · 2 cuts · waste 300 mm'],
       ['1', 'B', '2', 'Stud', 'GOLV-999', '2,000', '0', '2,000'],
-      ['2', 'D', '4', 'Nogging', 'GOLV-999', '1,000', '2,000', '3,000'],
+      ['2', 'D', '4', 'Nogging', 'GOLV-999', '1,000', '2,005', '3,005'],
     ])
 
     await userEvent.click(screen.getByRole('button', { name: 'Back to cutting plan' }))
@@ -253,5 +273,90 @@ describe('CuttingPanel cutting report', () => {
     expect(screen.queryByRole('heading', { name: 'Cutting report' })).not.toBeInTheDocument()
     expect(within(segments(bars()[1])[1]).getByRole('button')).toHaveFocus()
     delete (Element.prototype as Partial<Element>).scrollIntoView
+  })
+})
+
+// Lumberyards
+const YARD_HEADER = 'typ;utförande;tjocklek_mm;bredd_mm;hållfasthetsklass;sorteringsklass;längd_mm;antal;källa'
+const [TESTGARDEN, TRASIGA, RYMLIGA] = buildLumberyards([
+  { id: 'test', name: 'Testgården', csv: `${YARD_HEADER}\nartikel;hyvlat;45;95;C24;T2;4200;1;x\nartikel;hyvlat;45;95;C24;T2;3000;10;x` },
+  { id: 'bad', name: 'Trasiga gården', csv: `${YARD_HEADER}\nartikel;hyvlat;45;95;C24;T2;3000;-1;x` },
+  { id: 'ample', name: 'Rymliga gården', csv: `${YARD_HEADER}\nartikel;hyvlat;45;95;C24;T2;4200;50;x\nartikel;hyvlat;45;95;C24;T2;6000;5;x` },
+])
+const S04 = [
+  makeBoard('1 Stud 45x95 C24', 4000, { oid: 'A' }),
+  makeBoard('2 Stud 45x95 C24', 3900, { oid: 'B' }),
+  makeBoard('3 Nogging 45x95 C24', 2000, { oid: 'C' }),
+  makeBoard('4 Stud 45x95 C24', 6000, { oid: 'D' }),
+  makeBoard('5 Nogging 45x95 C16', 2000, { oid: 'E' }),
+]
+const orderRows = () =>
+  within(screen.getByRole('table', { name: 'Order list' }))
+    .getAllByRole('row')
+    .slice(1)
+    .map((row) => within(row).getAllByRole('cell').map((c) => c.textContent))
+
+describe('CuttingPanel lumberyards', () => {
+  // S07 (panel half)
+  it('has a labelled lumberyard select that re-plans against the chosen yard', async () => {
+    render(<YardSwitcher boards={S04} yards={[TESTGARDEN, RYMLIGA]} initial="test" />)
+    const select = screen.getByRole('combobox', { name: 'Lumberyard' })
+    expect(select).toHaveDisplayValue('Testgården')
+    expect(within(select).getAllByRole('option').map((o) => o.textContent)).toEqual(['Testgården', 'Rymliga gården'])
+    expect(stat('Pieces placed')).toBe('2')
+
+    await userEvent.selectOptions(select, 'Rymliga gården')
+    expect(select).toHaveDisplayValue('Rymliga gården')
+    expect(stat('Pieces placed')).toBe('4')
+    expect(stat('Out of stock')).toBe('0')
+    expect(orderRows().map((row) => row.slice(3, 5))).toEqual([
+      ['6,000', '2'],
+      ['4,200', '1'],
+    ])
+  })
+
+  // S08
+  it('shows stock per order line, marks sold-out articles and counts out-of-stock pieces', () => {
+    render(<YardSwitcher boards={S04} yards={[TESTGARDEN]} initial="test" />)
+    expect(orderRows()).toEqual([
+      ['45x95', 'C24', 'hyvlat', '4,200', '1', '4.2 m', '1', '0 sold out'],
+      ['45x95', 'C24', 'hyvlat', '3,000', '1', '3.0 m', '10', '9'],
+    ])
+    const header = within(screen.getByRole('table', { name: 'Order list' })).getAllByRole('columnheader')
+    expect(header.map((h) => h.textContent)).toEqual(expect.arrayContaining(['In stock', 'Left after order']))
+    expect(stat('Out of stock')).toBe('1')
+    expect(stat('Not planned')).toBe('3')
+
+    const rows = within(screen.getByRole('table', { name: 'Not planned (3)' })).getAllByRole('row').slice(1)
+    expect(rows.map((row) => [within(row).getAllByRole('cell')[0].textContent, within(row).getAllByRole('cell')[4].textContent])).toEqual([
+      ['B', 'Out of stock at Testgården'],
+      ['D', 'Longer than the longest stock length'],
+      ['E', 'No matching stock article'],
+    ])
+  })
+
+  it('shows a dash for articles with unlimited stock', () => {
+    const article = { id: '45x95-C24-3000', finish: 'hyvlat', profile: { thicknessMm: 45, widthMm: 95 }, grade: 'C24', lengthMm: 3000 } as const
+    const unlimited: Lumberyard = { id: 'u', name: 'Obegränsade gården', stock: [article] }
+    render(<YardSwitcher boards={[makeBoard('1 Stud 45x95 C24', 2000, { oid: 'U' })]} yards={[unlimited]} initial="u" />)
+    expect(orderRows()[0].slice(6)).toEqual(['—', '—'])
+  })
+
+  // S09 (report half)
+  it('names the chosen yard in the cutting report', async () => {
+    render(<YardSwitcher boards={S04} yards={[TESTGARDEN, RYMLIGA]} initial="ample" />)
+    await userEvent.click(screen.getByRole('button', { name: 'Cutting report' }))
+    expect(screen.getByText('Lumberyard: Rymliga gården')).toBeInTheDocument()
+  })
+
+  // S10 (panel half)
+  it('explains an unreadable stock list and keeps the select usable', async () => {
+    render(<YardSwitcher boards={S04} yards={[TESTGARDEN, TRASIGA, RYMLIGA]} initial="bad" />)
+    expect(screen.getByText('The stock list for Trasiga gården could not be read.')).toBeInTheDocument()
+    expect(screen.queryByRole('heading', { name: 'Waste report' })).not.toBeInTheDocument()
+
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Lumberyard' }), 'Testgården')
+    expect(screen.queryByText(/could not be read/)).not.toBeInTheDocument()
+    expect(stat('Pieces placed')).toBe('2')
   })
 })

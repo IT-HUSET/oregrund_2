@@ -1,0 +1,118 @@
+.yards {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  font-size: 14px;
+}
+
+.yards__section {
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.yards__message {
+  margin: 0;
+  padding: 24px 20px;
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  color: var(--text-muted);
+}
+
+.yards__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px 16px;
+  margin-bottom: 12px;
+}
+
+.yards__heading h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.yards__totals {
+  margin-left: auto;
+  color: var(--text-muted);
+}
+
+.yards__table {
+  width: auto;
+  min-width: min(100%, 480px);
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.yards__table th,
+.yards__table td {
+  padding: 7px 12px;
+  border-top: 1px solid var(--border);
+  text-align: left;
+  vertical-align: top;
+}
+
+.yards__table thead th {
+  position: sticky;
+  top: 0;
+  border-top: 0;
+  border-bottom: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+}
+
+.yards__table .yards__num {
+  text-align: right;
+  white-space: nowrap;
+}
+
+.yards__group > * {
+  padding-top: 14px;
+  border-top: 1px solid var(--border-strong);
+}
+
+.yards__group th {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.yards__table tbody:first-of-type .yards__group > * {
+  border-top: 0;
+}
+
+.yards__table .yards__group-totals {
+  color: var(--text-muted);
+}
+
+.yards__table tbody tr:not(.yards__group):hover {
+  background: var(--row-hover);
+}
+
+.yards__out {
+  margin-left: 6px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--warning-bg);
+  color: var(--warning-text);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (max-width: 480px) {
+  .yards__section {
+    padding: 14px 12px;
+  }
+
+  .yards__table th,
+  .yards__table td {
+    padding: 7px 6px;
+  }
+}

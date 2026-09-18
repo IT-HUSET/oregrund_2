@@ -39,6 +39,7 @@
 | Single cut → 3D (2026-09-18) | Tracing one cut highlights only that element. Its board siblings are **not** highlighted as related (judged noise); the info panel lists them instead. Related highlighting is used only for board and order-line traces. |
 | Permanent overlay (2026-09-18) | A 3D colour mode (by cutting status or by purchased board) is left to a later spec. |
 | Language (2026-09-18) | New UI strings are in English like the existing panels. The tab names stay Swedish. |
+| Lumberyard (2026-09-18, lumberyards) | `computeCuttingPlan(boards, yard)` plans against the **lumberyard chosen in the Cutting tab** (`docs/specs/lumberyards/lumberyards.md`), not `SVENSKT_TRA_SORTIMENT`. `App` holds the chosen yard for the session, so the plan, the trace index and the info panel's cutting context follow it. `TraceStatus` can carry the new not-planned reason **`out-of-stock`**, shown as "Out of stock at \<yard name\>" (`notPlannedText`). |
 
 
 ## Domain Model
