@@ -87,6 +87,8 @@ describe('CuttingPanel', () => {
     expect(cut).toHaveAttribute('title', expected)
 
     await userEvent.tab()
+    expect(screen.getByRole('button', { name: 'Cutting report' })).toHaveFocus()
+    await userEvent.tab()
     expect(cut).toHaveFocus()
     await userEvent.tab()
     expect(segments(bars()[0])[1]).toHaveAccessibleName(/^OID C · Nogging · GOLV-999 · 1,500 mm · offset 2,005 mm$/)
@@ -195,6 +197,61 @@ describe('CuttingPanel show in 3D', () => {
     expect(within(cut).getByRole('button')).toHaveFocus()
     expect(scrollIntoView).toHaveBeenCalled()
     expect(segments(bars()[0]).filter((s) => s.hasAttribute('aria-current'))).toEqual([])
+    delete (Element.prototype as Partial<Element>).scrollIntoView
+  })
+})
+
+describe('CuttingPanel cutting report', () => {
+  const withExtras = [...S01, makeBoard('Mystery piece', 900, { oid: 'X' })]
+
+  it('opens a factory cut list per purchased board and returns to the plan', async () => {
+    render(<Panel boards={withExtras} />)
+    const open = screen.getByRole('button', { name: 'Cutting report' })
+    await userEvent.click(open)
+
+    const heading = screen.getByRole('heading', { level: 2, name: 'Cutting report' })
+    expect(heading).toHaveFocus()
+    expect(screen.queryByRole('heading', { name: 'Cutting list' })).not.toBeInTheDocument()
+    expect(screen.getByText('2 boards · 4 cuts')).toBeInTheDocument()
+    expect(screen.getByText(/1 piece is not planned and is not in this report/)).toBeInTheDocument()
+
+    const table = screen.getByRole('table', { name: '45x95 C24' })
+    const rows = within(table).getAllByRole('row').slice(1)
+    expect(rows.map((row) => [...row.children].map((c) => c.textContent))).toEqual([
+      ['Board 1 · 3,600 mm hyvlat · 2 cuts · waste 100 mm'],
+      ['1', 'A', '1', 'Stud', 'VÄGG-999', '2,000', '0', '2,000'],
+      ['2', 'C', '3', 'Nogging', 'GOLV-999', '1,500', '2,000', '3,500'],
+      ['Board 2 · 3,000 mm hyvlat · 2 cuts'],
+      ['1', 'B', '2', 'Stud', 'GOLV-999', '2,000', '0', '2,000'],
+      ['2', 'D', '4', 'Nogging', 'GOLV-999', '1,000', '2,000', '3,000'],
+    ])
+
+    await userEvent.click(screen.getByRole('button', { name: 'Back to cutting plan' }))
+    expect(screen.queryByRole('heading', { name: 'Cutting report' })).not.toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Cutting list' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Cutting report' })).toHaveFocus()
+  })
+
+  it('prints the report', async () => {
+    const print = vi.spyOn(window, 'print').mockImplementation(() => {})
+    render(<Panel boards={S01} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Cutting report' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Print' }))
+    expect(print).toHaveBeenCalledOnce()
+  })
+
+  it('has no report when no board is purchased', () => {
+    render(<Panel boards={[makeBoard('Mystery piece', 900, { oid: 'X' })]} />)
+    expect(screen.queryByRole('button', { name: 'Cutting report' })).not.toBeInTheDocument()
+  })
+
+  it('closes the report when a cut is targeted from 3D', async () => {
+    Element.prototype.scrollIntoView = vi.fn()
+    const { rerender } = render(<Panel boards={S01} onShowInModel={() => {}} />)
+    await userEvent.click(screen.getByRole('button', { name: 'Cutting report' }))
+    rerender(<Panel boards={S01} onShowInModel={() => {}} cutTarget={{ oid: 'D', seq: 1 }} />)
+    expect(screen.queryByRole('heading', { name: 'Cutting report' })).not.toBeInTheDocument()
+    expect(within(segments(bars()[1])[1]).getByRole('button')).toHaveFocus()
     delete (Element.prototype as Partial<Element>).scrollIntoView
   })
 })

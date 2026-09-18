@@ -34,6 +34,11 @@
   margin-bottom: 8px;
 }
 
+.cutting__heading--split {
+  justify-content: space-between;
+  margin-bottom: 12px;
+}
+
 .cutting__heading h2,
 .cutting__heading h3 {
   margin: 0;

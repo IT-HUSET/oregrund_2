@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { formatCount, formatMetres, formatMm } from '../../components/format.ts'
 import type { SkippedBoard } from '../../domain/1dcutting/boardDemands.ts'
+import { buildCutReport } from '../../domain/1dcutting/cutReport.ts'
 import { profileLabel, type BoardPlan, type CuttingPlan, type OrderLine } from '../../domain/1dcutting/cutting.ts'
 import { groupBoards, NOT_PLANNED_REASONS, type PlanResult } from '../../domain/1dcutting/traceability.ts'
 import type { Board } from '../../domain/boards/board.ts'
+import { CutReport } from './CutReport.tsx'
 import './CuttingPanel.css'
 
 // A request to show pieces in 3D: one primary piece, or a set with a label.
@@ -54,6 +56,15 @@ interface CuttingPlanViewProps {
 function CuttingPlanView({ boards, result, onShowInModel, cutTarget }: CuttingPlanViewProps) {
   const boardByOid = useMemo(() => new Map(boards.map((b) => [b.oid, b])), [boards])
   const rootRef = useRef<HTMLDivElement>(null)
+  const reportButtonRef = useRef<HTMLButtonElement>(null)
+  const [reportOpen, setReportOpen] = useState(false)
+  const [seenTarget, setSeenTarget] = useState(cutTarget)
+  const returnFocus = useRef(false)
+  // A new cut target (from 3D) closes the report, so the scroll effect below finds the cut.
+  if (cutTarget !== seenTarget) {
+    setSeenTarget(cutTarget)
+    if (cutTarget) setReportOpen(false)
+  }
 
   // Scroll to and focus the target cut once per request. The panel is shown in the same commit.
   useEffect(() => {
@@ -66,6 +77,13 @@ function CuttingPlanView({ boards, result, onShowInModel, cutTarget }: CuttingPl
     ;(cut.querySelector('button') ?? cut).focus()
   }, [cutTarget])
 
+  // Closing the report puts focus back on the button that opened it.
+  useEffect(() => {
+    if (reportOpen || !returnFocus.current) return
+    returnFocus.current = false
+    reportButtonRef.current?.focus()
+  }, [reportOpen])
+
   if ('error' in result) {
     return <p className="cutting__message">The cutting plan could not be computed for this model.</p>
   }
@@ -73,10 +91,29 @@ function CuttingPlanView({ boards, result, onShowInModel, cutTarget }: CuttingPl
   const { totals } = plan
   const notPlanned = skipped.length + plan.unplaced.length
 
+  if (reportOpen) {
+    return (
+      <CutReport
+        report={buildCutReport(plan, skipped, boards)}
+        onClose={() => {
+          returnFocus.current = true
+          setReportOpen(false)
+        }}
+      />
+    )
+  }
+
   return (
     <div className="cutting" ref={rootRef}>
       <section className="cutting__section" aria-labelledby="cutting-report-heading">
-        <h2 id="cutting-report-heading">Waste report</h2>
+        <div className="cutting__heading cutting__heading--split">
+          <h2 id="cutting-report-heading">Waste report</h2>
+          {plan.boards.length > 0 && (
+            <button type="button" ref={reportButtonRef} onClick={() => setReportOpen(true)}>
+              Cutting report
+            </button>
+          )}
+        </div>
         <dl className="cutting__totals">
           <Stat label="Pieces placed" value={formatCount(totals.placedPieces)} />
           <Stat label="Not planned" value={formatCount(notPlanned)} />

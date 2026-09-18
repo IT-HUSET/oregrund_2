@@ -1,0 +1,141 @@
+.cut-report {
+  padding: 18px 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  font-size: 14px;
+}
+
+.cut-report__header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.cut-report__header h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+.cut-report__header h2:focus {
+  outline: none;
+}
+
+.cut-report__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.cut-report__print {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: var(--on-accent);
+}
+
+.cut-report__print:hover:not(:disabled) {
+  border-color: var(--accent-hover);
+  background: var(--accent-hover);
+  color: var(--on-accent);
+}
+
+.cut-report__summary {
+  margin: 8px 0 0;
+  color: var(--text-muted);
+}
+
+.cut-report__note {
+  margin: 12px 0 0;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  background: var(--warning-bg);
+  color: var(--warning-text);
+}
+
+.cut-report__group {
+  margin-top: 20px;
+  /* Wide tables scroll inside the report instead of widening the page. */
+  overflow-x: auto;
+}
+
+.cut-report__group h3 {
+  margin: 0 0 8px;
+  font-size: 15px;
+}
+
+.cut-report__table {
+  min-width: min(100%, 640px);
+  border-collapse: collapse;
+  font-variant-numeric: tabular-nums;
+}
+
+.cut-report__table th,
+.cut-report__table td {
+  padding: 5px 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.cut-report__table thead th {
+  border-bottom: 1px solid var(--border-strong);
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cut-report__table td {
+  border-top: 1px solid var(--border);
+}
+
+.cut-report__table .cut-report__num {
+  text-align: right;
+}
+
+.cut-report__board-heading {
+  padding-top: 14px;
+  border-bottom: 1px solid var(--border-strong);
+  font-weight: 600;
+}
+
+.cut-report__board:first-of-type .cut-report__board-heading {
+  padding-top: 8px;
+}
+
+.cut-report__board tr:nth-child(2) td {
+  border-top: 0;
+}
+
+@media print {
+  /* Paper is white whatever the screen theme. */
+  .cut-report {
+    --text: #000;
+    --text-muted: #444;
+    --border: #ccc;
+    --border-strong: #888;
+    --warning-bg: transparent;
+    --warning-text: #000;
+    color: var(--text);
+    background: none;
+    padding: 0;
+    border: 0;
+    box-shadow: none;
+    font-size: 11pt;
+  }
+
+  .cut-report__actions {
+    display: none;
+  }
+
+  .cut-report__group {
+    overflow: visible;
+  }
+
+  /* Keep a board's cuts together on one page when they fit. */
+  .cut-report__board {
+    break-inside: avoid;
+  }
+}

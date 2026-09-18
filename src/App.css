@@ -185,3 +185,23 @@
     grid-template-rows: minmax(300px, 1fr) auto;
   }
 }
+
+/* Print only the open panel, at full length. */
+@media print {
+  .app {
+    height: auto;
+  }
+
+  .app__header,
+  .app__tabs {
+    display: none;
+  }
+
+  .app__main {
+    padding: 0;
+  }
+
+  .app__boards {
+    overflow: visible;
+  }
+}
