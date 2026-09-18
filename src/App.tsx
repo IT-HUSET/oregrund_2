@@ -26,9 +26,9 @@ interface ShownModel {
 type Tab = 'model' | 'boards' | 'cutting'
 
 const TABS: { id: Tab; label: string }[] = [
-  { id: 'model', label: '3D model' },
-  { id: 'boards', label: 'Boards' },
-  { id: 'cutting', label: 'Cutting' },
+  { id: 'model', label: '3D-modell' },
+  { id: 'boards', label: 'Brädor' },
+  { id: 'cutting', label: 'Kapning' },
 ]
 
 // The board list of one model load (ShownModel.seq), or the failure to build it. Keyed by seq
@@ -158,7 +158,7 @@ function App() {
       )}
 
       {shown && (
-        <div className="app__tabs" role="tablist" aria-label="Views">
+        <div className="app__tabs" role="tablist" aria-label="Vyer">
           {TABS.map((t) => (
             <button
               key={t.id}
