@@ -1,0 +1,24 @@
+﻿kategori;utförande;tjocklek_mm;bredd_mm;träslag;hållfasthetsklass;sorteringsklass;standard;längd_mm;anmärkning
+tvärsnitt;sågat;45;95;gran/furu;;;;;Exempel på vanligt konstruktionsvirke
+tvärsnitt;hyvlat;43;95;gran/furu;;;;;Exempel på vanligt konstruktionsvirke
+tvärsnitt;sågat;45;120;gran/furu;;;;;Exempel på vanligt konstruktionsvirke
+tvärsnitt;hyvlat;43;120;gran/furu;;;;;Exempel på vanligt konstruktionsvirke
+tvärsnitt;sågat;45;145;gran/furu;;;;;Exempel på vanligt konstruktionsvirke
+tvärsnitt;hyvlat;43;145;gran/furu;;;;;Exempel på vanligt konstruktionsvirke
+tvärsnitt;sågat;45;170;gran/furu;;;;;Exempel på vanligt konstruktionsvirke
+tvärsnitt;hyvlat;43;170;gran/furu;;;;;Exempel på vanligt konstruktionsvirke
+tvärsnitt;sågat;45;195;gran/furu;;;;;Exempel på vanligt konstruktionsvirke
+tvärsnitt;hyvlat;43;195;gran/furu;;;;;Exempel på vanligt konstruktionsvirke
+tvärsnitt;sågat;45;220;gran/furu;;;;;Exempel på vanligt konstruktionsvirke
+tvärsnitt;hyvlat;43;220;gran/furu;;;;;Exempel på vanligt konstruktionsvirke
+tvärsnitt;sågat;45;245;gran/furu;;;;;Exempel på vanligt konstruktionsvirke
+tvärsnitt;hyvlat;43;245;gran/furu;;;;;Exempel på vanligt konstruktionsvirke
+hållfasthetsklass;konstruktionsvirke;;;gran/furu;C14;;SS-EN 338;;Grundläggande konstruktionsklass
+hållfasthetsklass;konstruktionsvirke;;;gran/furu;C18;;SS-EN 338;;Konstruktionsklass
+hållfasthetsklass;konstruktionsvirke;;;gran/furu;C24;T2;SS-EN 338 / SS-EN 14081-1;;Vanlig klass för bärande konstruktioner
+hållfasthetsklass;konstruktionsvirke;;;gran/furu;C30;T3;SS-EN 338 / SS-EN 14081-1;;Högre hållfasthetsklass
+hållfasthetsklass;konstruktionsvirke;;;gran/furu;C35;;SS-EN 338 / SS-EN 14081-1;;Maskinellt sorterat konstruktionsvirke
+sorteringsklass;visuellt sorterat konstruktionsvirke;;;gran/furu;C14;T0;SS 230120;;T0 motsvarar C14
+sorteringsklass;visuellt sorterat konstruktionsvirke;;;gran/furu;C18;T1;SS 230120;;T1 motsvarar C18
+sorteringsklass;visuellt sorterat konstruktionsvirke;;;gran/furu;C24;T2;SS 230120;;T2 motsvarar C24
+sorteringsklass;visuellt sorterat konstruktionsvirke;;;gran/furu;C30;T3;SS 230120;;T3 motsvarar C30

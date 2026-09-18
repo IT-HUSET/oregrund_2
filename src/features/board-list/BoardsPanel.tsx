@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { formatCount, formatMetres } from '../../components/format.ts'
 import type { Board } from '../../domain/boards/board.ts'
 import { boardGroupKey, compareProfiles, summarizeBoards, UNPARSED_GROUP } from '../../domain/boards/boardSummary.ts'
 import './BoardsPanel.css'
@@ -45,7 +46,12 @@ const COLUMNS: Column[] = [
 
 export function BoardsPanel({ boards, error = false }: BoardsPanelProps) {
   if (error) return <p className="board-list__message">The board list could not be built from this model.</p>
-  if (!boards) return <p className="board-list__message">Reading boards…</p>
+  if (!boards)
+    return (
+      <p className="board-list__message" role="status">
+        Reading boards…
+      </p>
+    )
   if (boards.length === 0) return <p className="board-list__message">No boards found in this model.</p>
   return <BoardList boards={boards} />
 }
@@ -205,13 +211,4 @@ function defaultOrder(a: Board, b: Board): number {
 
 function compareText(a: string, b: string): number {
   return a.localeCompare(b, 'en', { numeric: true })
-}
-
-function formatCount(value: number): string {
-  return value.toLocaleString('en-US')
-}
-
-// Summary totals are shown in metres with one decimal, e.g. 2408 mm → "2.4 m".
-function formatMetres(mm: number): string {
-  return `${(mm / 1000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`
 }

@@ -83,6 +83,13 @@
   overflow: auto;
 }
 
+.app__loading {
+  margin: 0;
+  padding: 8px 16px;
+  border-bottom: 1px solid var(--border);
+  color: var(--text-muted);
+}
+
 /* The display rules above would otherwise override the hidden attribute. */
 .app__viewer[hidden],
 .app__boards[hidden] {
