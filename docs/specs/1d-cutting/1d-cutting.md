@@ -1,8 +1,8 @@
-# Feature Implementation Specification: 1D Cutting (`src/domain/1dcutting`)
+# Feature Implementation Specification: 1D Cutting (`src/domain/1dcutting` + Cutting tab)
 
 ## Feature Overview and Goal
 
-**Intent**: Implement the "Algorithmic waste optimisation (1D Cutting Stock)" must-have in `docs/Kravbild.docx`. Take a list of timber pieces needed by the model, each carrying its IFC Tag (the Vertex OID), plus the standard timber assortment (Svenskt Trä cross-sections and strength classes, with trade lengths). Work out which boards to buy and how to cut each one, so that every cut piece traces back to its IFC element. This spec covers only the pure domain module. Building the input from IFC/XML and showing the result in the UI get their own specs.
+**Intent**: Implement the "Algorithmic waste optimisation (1D Cutting Stock)" must-have in `docs/Kravbild.docx`. Take a list of timber pieces needed by the model, each carrying its IFC Tag (the Vertex OID), plus the standard timber assortment (Svenskt Trä cross-sections and strength classes, with trade lengths). Work out which boards to buy and how to cut each one, so that every cut piece traces back to its IFC element. Then show the result in the web app: a **Cutting** tab, next to **3D model** and **Boards**, that lists the boards to order and draws each one as a bar split into its cuts and waste. The input is the `Board[]` list the Boards tab already builds (`docs/specs/board-list/board-list.md`), so the IFC model is not parsed again.
 
 **Expected Outcomes**:
 
@@ -10,6 +10,10 @@
 - [OC02] The plan wastes clearly less than buying one board per piece (the `base_case.txt` baseline), and its totals (required, purchased and waste length, waste %) are consistent and ready for a waste report.
 - [OC03] A piece that can't be cut from any stock article is never dropped silently. It shows up in the plan as unplaced, with a reason.
 - [OC04] The stock list ships with the app as static data built from the Svenskt Trä timber assortment, so no file or network access is needed.
+- [OC05] Every board from the loaded model's board list becomes a cut demand or is reported as skipped (unparsed name or no length). Nothing is dropped between the Boards tab and the Cutting tab.
+- [OC06] After loading an `.ifc` file, the user can open a **Cutting** tab that shows the order list (article × quantity), the waste report totals, and every purchased board drawn to a common scale, with its cuts in saw order and its waste at the end.
+- [OC07] Every drawn cut can be traced to its IFC element: it shows or reveals its OID, role, prefab element and length.
+- [OC08] Unplaced and skipped pieces are listed in the Cutting tab with a readable reason, and a failure to plan never breaks the other tabs.
 
 
 ## Required Context
@@ -19,13 +23,21 @@
 - `docs/specs/000-project-foundation.md#42-source-layout`: `src/domain/` is pure TS with no React, DOM or library imports.
 - `docs/specs/000-project-foundation.md#8-security-and-data-assumptions`: fixtures are hand-made and contain no data from the confidential sample files.
 - `CLAUDE.md#linking-the-two-files`: IFC `Tag` = XML `OID`. This is the id that each demand carries.
+- `docs/specs/board-list/board-list.md`: the `Board` type (`src/domain/boards/board.ts#Board`), the memoized `getBoards()` lookup on the loaded model, and the tab bar in `src/App.tsx`. The Cutting tab reuses all three.
+- `docs/specs/000-project-foundation.md#8-security-and-data-assumptions`: file-derived text (OIDs, roles, element names) renders only as React text.
 
 
 ## Decisions (from clarification, 2026-09-18)
 
 | Topic | Decision |
 |---|---|
-| Input | A generic `CutDemand[]`. Adapters from IFC (`IFCBEAM`/`IFCCOLUMN`) or `components.xml` (`FRAMEPIECE`) are **out of scope** and belong to a later spec. |
+| Input | `planCuts` takes a generic `CutDemand[]`. The app builds it from the Boards tab's `Board[]` (`IFCBEAM`, `IFCCOLUMN`, `IFCCOVERING`) with a pure adapter, `boardsToDemands`. A `components.xml` (`FRAMEPIECE`) adapter is still out of scope. |
+| Board → demand | `ifcTag` = `board.oid`, profile = the nominal `thickness` × `width` (normalised), grade = `board.grade`, `lengthMm` = `board.length`. The profile **suffix** (`_S`, `_sta_Z`) is ignored for matching and kept for display. Boards flagged `unparsed` or `no-length` are skipped with that reason and never reach `planCuts`. Siding (`IFCCOVERING`) is included like framing. |
+| UI | A third tab, **Cutting**, after **Boards**. It shows the waste report totals, the order list, the unplaced/skipped pieces, and one bar per purchased board, grouped by profile + grade. The plan is computed once per loaded model, the first time Boards or Cutting needs the board list. |
+| Siding without stock (2026-09-18) | Siding with no matching stock article (all `22x145_sta_Z C16` in the sample) stays in the tab and is listed as "Not planned". The stock table is not extended with siding profiles or C16. |
+| Suffixes (2026-09-18) | Profile suffixes (`_S`, `_sta_Z`) are ignored when matching stock, so cuts with and without a suffix can share a board. |
+| 3D link (2026-09-18) | Clicking a cut to select its element in 3D is deferred to the traceability spec. |
+| Rendering | Plain DOM (`div`s with percentage widths, drawn to one common scale where 100 % = the longest purchased article), styled in `src/features/cutting-plan/CuttingPanel.css`. No canvas, SVG library or new dependency. |
 | Stock list | `svenskt_tra_virkessortiment.csv` (see Stock Table), bundled in `src/domain/1dcutting/`, with no prices and unlimited quantity per article. It replaces the earlier `svensk_trastandard_matt_tradslag.csv`, which is not used. |
 | Objective | Minimise total waste length, using a deterministic heuristic (First Fit Decreasing plus choice of stock length). Proven optimality isn't required. |
 | Cutting parameters | **None for now.** Kerf = 0, no end trim, and no reusable offcuts: everything left on a board counts as waste. |
@@ -82,7 +94,21 @@ interface CuttingPlan {
 function planCuts(demands: readonly CutDemand[], stock: readonly StockArticle[]): CuttingPlan
 function parseStockCsv(csv: string): StockArticle[]   // pure; throws on malformed rows
 export const SVENSKT_TRA_SORTIMENT: readonly StockArticle[]  // parseStockCsv(bundled CSV)
+
+// --- Board adapter (src/domain/1dcutting/boardDemands.ts) ---
+
+type SkipReason = 'unparsed' | 'no-length'
+interface SkippedBoard { board: Board; reason: SkipReason }
+
+interface BoardDemands {
+  demands: CutDemand[]    // one per usable board, in input order
+  skipped: SkippedBoard[] // boards that can't become a demand
+}
+
+function boardsToDemands(boards: readonly Board[]): BoardDemands
 ```
+
+The UI looks up a cut's `Board` (role, element, profile label with suffix) by `ifcTag` → `board.oid`. `CutDemand` itself stays IFC-agnostic.
 
 Names can change during implementation. The shape (Tag on every cut, reasons on unplaced pieces, and totals) can't.
 
@@ -164,11 +190,48 @@ Unless a scenario says otherwise, stock is `SVENSKT_TRA_SORTIMENT`.
   - **When** `parseStockCsv` runs
   - **Then** it throws an error that names the offending line number, instead of returning a partial table.
 
+- [ ] **S13 [OC05] [TI03] Boards become demands, and unusable boards are skipped with a reason**
+  - **Given** the boards `1` `45x95 C24` 2000 mm, `2` `45x220_S C24` 1200 mm, `3` `Mystery piece` (unparsed, 900 mm), and `4` `45x95 C24` with no length
+  - **When** `boardsToDemands` runs
+  - **Then** the demands are `{1, 45x95, C24, 2000}` and `{2, 45x220, C24, 1200}` (suffix dropped for matching), and `skipped` is `3` with `unparsed` and `4` with `no-length`. Demands plus skipped equals the input count.
+
+- [ ] **S14 [OC06] [TI04,TI05] The user sees the order list, totals and cut boards**
+  - **Given** a loaded model whose boards are the four S01 pieces (`A` 2000, `B` 2000, `C` 1500, `D` 1000, all `45x95 C24`)
+  - **When** the user selects the **Cutting** tab
+  - **Then**:
+    - The totals read: 4 pieces placed, 2 boards to buy, 6.6 m purchased, 6.5 m required, 0.1 m waste (1.5 %).
+    - The order list has two rows, `45x95 C24 · 3600 mm · 1` and `45x95 C24 · 3000 mm · 1`, each with its finish (`hyvlat`).
+    - Under the heading `45x95 C24` there are two board bars. The 3600 bar shows segment `A` (2000) then `C` (1500) then a waste segment of 100 mm. The 3000 bar shows `B` then `D` and no waste segment.
+    - Segment widths are proportional: on the common scale (100 % = 3600 mm), `A` is 55.6 %, and the whole 3000 bar is 83.3 %.
+
+- [ ] **S15 [OC07] [TI05] Each cut is traceable to its IFC element**
+  - **Given** the S14 plan, and board `A` has role `Stud` and element `VÄGG-999`
+  - **When** the user focuses or hovers the `A` segment
+  - **Then** it exposes (as its accessible name and a tooltip) `OID A · Stud · VÄGG-999 · 2000 mm · offset 0`. Every segment shows its OID as a visible label when it is wide enough, and its accessible name always carries the OID and length.
+
+- [ ] **S16 [OC08] [TI04,TI05] Unplaced and skipped pieces are listed with reasons**
+  - **Given** boards that include `45x182 C24` (no matching stock), `45x95 C24` 6000 mm (too long), a `22x145_sta_Z C16` siding board (no matching stock), and one unparsed board
+  - **When** the user opens **Cutting**
+  - **Then** a "Not planned" section lists each of them with OID, name, profile and length, and a reason in plain words: "No matching stock article", "Longer than the longest stock length", "Name could not be read" or "Missing length". Its heading shows the count. The totals count them as unplaced and exclude them from required length.
+
+- [ ] **S17 [OC06,OC08] [TI04,TI06] Loading, empty and error states**
+  - **Given** (a) the board lookup is still pending, (b) the model has no boards, (c) the board lookup rejects, (d) `planCuts` throws (e.g. duplicate OIDs)
+  - **When** the user opens **Cutting**
+  - **Then** it shows (a) "Planning cuts…", (b) "No boards found in this model.", (c) "The board list could not be built from this model.", (d) "The cutting plan could not be computed for this model." and the error goes to `console.error`. In every case the **3D model** and **Boards** tabs keep working.
+
+- [ ] **S18 [OC06] [TI06] The Cutting tab fits the existing shell**
+  - **Given** a model is loaded
+  - **When** the user uses the tab bar
+  - **Then** it has three tabs, **3D model**, **Boards** and **Cutting**, in that order, with arrow/Home/End keyboard navigation over all three. The board lookup is called once per model no matter which of Boards/Cutting is opened first or how often the user switches. Loading a new file replaces the plan with the new model's plan.
+
 
 ## Structural Criteria
 
 - [ ] `npm run lint`, `npm run typecheck`, `npm run test:run` and `npm run build` pass.
-- [ ] `src/domain/1dcutting/` imports nothing from `react`, `three`, `web-ifc`, other feature folders or DOM APIs, and adds no new dependencies.
+- [ ] `src/domain/1dcutting/` imports nothing from `react`, `three`, `web-ifc`, feature folders or DOM APIs, and adds no new dependencies. Its only import from another domain module is the `Board` type in `boardDemands.ts`.
+- [ ] `src/features/cutting-plan/` depends only on `src/domain/` and `src/components/`. No file-derived string is rendered through `dangerouslySetInnerHTML`.
+- [ ] The existing `App.test.tsx` and `BoardsPanel.test.tsx` scenarios still pass.
+- [ ] With `772_H811_new.ifc` in `npm run dev` (manual check): opening **Cutting** shows the plan without a noticeable freeze, every one of the 1,060 boards is either on a drawn board or in "Not planned", and the 3D camera is kept when switching back.
 - [ ] `planCuts` does not mutate its inputs.
 - [ ] The fixtures are hand-written. Tags are made-up ids, and nothing is copied from `772_H811_new.ifc` or `components.xml`.
 
@@ -176,11 +239,16 @@ Unless a scenario says otherwise, stock is `SVENSKT_TRA_SORTIMENT`.
 ## Scope & Boundaries
 
 ### Work Areas
-- `src/domain/1dcutting/`: types, the stock CSV (moved from `docs/specs/1d-cutting/`), `parseStockCsv`, `SVENSKT_TRA_SORTIMENT`, `planCuts`, and tests alongside them.
+- `src/domain/1dcutting/`: types, the stock CSV (moved from `docs/specs/1d-cutting/`), `parseStockCsv`, `SVENSKT_TRA_SORTIMENT`, `planCuts`, `boardsToDemands`, and tests alongside them.
+- `src/features/cutting-plan/`: `CuttingPanel.tsx` (totals, order list, board bars, "Not planned"), `CuttingPanel.css`, and `CuttingPanel.test.tsx`.
+- `src/App.tsx` / `src/App.css` / `src/App.test.tsx`: the third tab, and the board lookup shared by Boards and Cutting.
 
 ### What We're NOT Doing
-- Building `CutDemand[]` from IFC or `components.xml`, including parsing dimensions and grades from names such as `'FD5 Opening header beam 45x182 C24'`. That's a later adapter spec.
-- UI: cutting list, waste report, click-through to the 3D view. Those are later feature specs.
+- A `components.xml` (`FRAMEPIECE`) adapter. Board names are already parsed by `src/domain/boards/`, and this spec doesn't parse them again.
+- Clicking a cut segment to select the element in 3D. That's still deferred to the traceability spec (the `Board` keeps its `expressId`, so it stays possible).
+- Editing the plan in the UI: choosing stock lengths, kerf, or moving cuts between boards.
+- Export (CSV/PDF) and printing of the cutting list.
+- Moving `planCuts` to a Web Worker. It runs synchronously in a `useMemo`, which S09's < 1 s budget allows.
 - Kerf, end trim, minimum usable offcut, remnant reuse, and finger-jointing or splicing of pieces that are too long.
 - Prices, cost minimisation, supplier catalogues and stock quantities (stock is unlimited).
 - Sheet materials (`SHEET`, 2D cutting) and non-timber materials.
@@ -193,6 +261,42 @@ Unless a scenario says otherwise, stock is `SVENSKT_TRA_SORTIMENT`.
 **Approach**: Group demands by (profile, grade) and match each group against the stock articles with the same profile and grade. For each group, and for each available stock length *L*, run **First Fit Decreasing** (pieces sorted by length descending, ties broken by `ifcTag` ascending; a new board of length *L* is opened when no open board fits). Then **downsize** each board to the shortest article that still fits its `usedMm`. Keep the candidate with the least waste, breaking ties by fewest boards and then by smallest *L*.
 **Why this over alternatives**: This is deterministic, needs no dependencies, and takes milliseconds for about 750 pieces (9 lengths × FFD per group). Trying each opening length and then downsizing fixes FFD's main weakness with mixed stock lengths. An exact column-generation/ILP solver would need a WASM solver dependency, which the demo doesn't justify. The `planCuts` signature lets a better solver replace this one later.
 
+**UI approach**: `App` fetches the board list once per model when **Boards** or **Cutting** is first shown (the existing `boardsRequestedFor` guard, widened to both tabs), and passes the same `Board[] | null` and error flag to both panels. `CuttingPanel` computes `boardsToDemands` → `planCuts(demands, SVENSKT_TRA_SORTIMENT)` in one `useMemo` and catches a thrown error into the S17 (d) state. The panel is keyed by the model's `seq`, like `BoardsPanel`.
+**Why this over alternatives**: Sharing the lookup keeps the "extract once per model" guarantee of the board-list spec. Plain `div` bars with percentage widths are testable in jsdom (widths are readable from `style`) and need no charting dependency, whereas canvas would hide the cuts from tests and screen readers.
+
+
+## UI Wireframe
+
+The numbers below are illustrative, not from the sample.
+
+```
+[ 3D model ] [ Boards ] [ Cutting ]
+───────────────────────────────────────────────────────────────────────
+Waste report   612 pieces placed · 214 boards to buy
+               1,012.4 m purchased · 948.1 m required · 64.3 m waste (6.4 %)
+
+Order list
+  Profile     Grade  Finish   Length (mm)  Qty   Total (m)
+  45x95       C24    hyvlat   3600          12    43.2
+  45x95       C24    hyvlat   3000           4    12.0
+  …
+
+45x95 C24 · 16 boards                       scale: |─── 1 m ───|
+  3600  [ A 2000          | C 1500      |▨]  waste 100
+  3000  [ B 2000          | D 1000   ]
+  …
+
+Not planned (452)                                        [ show ▾ ]
+  OID     Name                            Profile        Length  Reason
+  589830  FD5 Opening header beam 45x182  45x182 C24     1180    No matching stock article
+  …
+```
+
+- One section per profile + grade, in board order (the S08 contract), with the article length at the left of each bar and the waste amount at the right.
+- Cut segments alternate between two fill tones so that neighbouring cuts are distinct. The waste segment is hatched and labelled "waste". Colours come from CSS tokens in `src/index.css`, so they work in light and dark themes.
+- A segment's label is its OID, and the label is hidden (the accessible name stays) when the segment is narrower than the text.
+- The "Not planned" list starts collapsed when it has more than 20 rows.
+
 
 ## Constraints & Gotchas
 
@@ -201,24 +305,42 @@ Unless a scenario says otherwise, stock is `SVENSKT_TRA_SORTIMENT`.
 - **Assumption**: The trade lengths (3000–5400 mm in 300 mm steps) come from Kravbild, not from Svenskt Trä. Every cross-section is assumed to be available in every strength class and length. See Open Questions.
 - **Constraint**: Grade matching is exact after alias normalisation (T0→C14, T1→C18, T2→C24, T3→C30). A higher class is **not** used in place of a lower one, e.g. C30 stock for a C24 demand. That rule is the same as in `base_case.txt`.
 - **Avoid**: coupling the module to the viewer's `ElementInfo`. The only link to IFC is the `ifcTag` string.
+- **Critical**: `planCuts` throws on duplicate `ifcTag`s. An IFC export could in theory repeat a Tag, so the panel must catch this and show S17 (d) rather than crash the app. Check the sample for duplicate Tags during the manual validation.
+- **Gotcha**: In the sample, all siding is `22x145_sta_Z C16`. Neither 22×145 nor C16 is in the stock table, so every siding board lands in "Not planned" with "No matching stock article". This is intended (see Decisions), and the "Not planned" section groups them clearly rather than hiding them.
+- **Gotcha**: Profiles with decimals (`9.762523x95`) and glulam (`GL`) never match stock and are also listed as not planned.
+- **Constraint**: Lengths display as whole mm and totals in metres with one decimal, as in the Boards tab. Use the same formatting helpers (move them to `src/components/` or a shared module if both panels need them, instead of copying).
+- **Avoid**: unmounting the 3D viewport when **Cutting** is shown. It stays hidden, as for **Boards**.
 
 
 ## Implementation Plan
 
 ### Implementation Tasks
 
-- [ ] **TI01** `src/domain/1dcutting/` contains the domain types, `normaliseProfile` and `normaliseGrade` helpers, the stock CSV (moved with `git mv` from `docs/specs/1d-cutting/svenskt_tra_virkessortiment.csv`), a pure `parseStockCsv`, and `SVENSKT_TRA_SORTIMENT` built from the CSV through a `?raw` import.
+- [x] **TI01** `src/domain/1dcutting/` contains the domain types, `normaliseProfile` and `normaliseGrade` helpers, the stock CSV (moved with `git mv` from `docs/specs/1d-cutting/svenskt_tra_virkessortiment.csv`), a pure `parseStockCsv`, and `SVENSKT_TRA_SORTIMENT` built from the CSV through a `?raw` import.
   - **Verify**: The S10–S12 unit tests pass, and typecheck and build pass.
 
-- [ ] **TI02** `planCuts(demands, stock)` implements grouping, validation (reasons for unplaced demands, an error on duplicate tags), FFD per candidate length with downsizing, least-waste selection, deterministic ordering and totals.
+- [x] **TI02** `planCuts(demands, stock)` implements grouping, validation (reasons for unplaced demands, an error on duplicate tags), FFD per candidate length with downsizing, least-waste selection, deterministic ordering and totals.
   - **Verify**: Unit tests for S01–S09 pass. The S09 test uses a small seeded PRNG written in the test, with no dependency.
 
+- [x] **TI03** `boardsToDemands(boards)` in `src/domain/1dcutting/boardDemands.ts` maps each `Board` to a `CutDemand` or a `SkippedBoard`, as in the Decisions table.
+  - **Verify**: The S13 unit test passes, with `Board` literals from `src/domain/boards/__fixtures__/boards.ts` or inline.
+
+- [x] **TI04** `src/features/cutting-plan/CuttingPanel.tsx` takes `boards: readonly Board[] | null` and `error?: boolean`, and renders the loading, empty, board-error and plan-error states, the waste report totals, the order list and the "Not planned" list (unplaced + skipped, with the reason texts from S16).
+  - **Verify**: RTL tests with `Board[]` literals cover S14 (totals and order list), S16 and S17 (a)–(d). For (d), pass boards with a duplicate OID.
+
+- [x] **TI05** The panel draws one bar per `BoardPlan`, grouped by profile + grade, with cut segments in saw order, a hatched waste segment, the common scale, and the S15 labels, tooltips and accessible names. Each segment is focusable (`tabIndex={0}`) so its details can be reached by keyboard.
+  - **Verify**: RTL tests read the segments of each bar in order (OID and length), check the waste segment, check `style.width` percentages from S14, and check the S15 accessible name.
+
+- [x] **TI06** `App.tsx` adds the **Cutting** tab and panel (`id="panel-cutting"`, kept mounted and `hidden` like Boards). It requests the board list the first time either Boards or Cutting is shown, and passes the same result to both panels.
+  - **Verify**: `App.test.tsx` covers S18: three tabs in order, keyboard navigation wraps over three, `getBoards` is called once when opening Cutting then Boards then Cutting, and a second file shows the second model's plan. The existing tab tests still pass.
+
 ### Testing Strategy
-- Pure Vitest unit tests in the node environment, next to the code (`planCuts.test.ts`, `svenskTrastandard.test.ts`).
+- Pure Vitest unit tests in the node environment, next to the code (`planCuts.test.ts`, `stock.test.ts`, `boardDemands.test.ts`).
 - Small stock lists are written inline in tests, so that scenarios don't depend on the bundled table, except for S01, S03, S10 and S11.
+- UI tests (`CuttingPanel.test.tsx`, `App.test.tsx`) use `Board[]` literals and the mocked loader, and never WASM. They use the bundled stock table, so the S14 numbers match S01.
 
 ### Validation
-- Manual one-off check (not committed): feed the timber pieces from the sample model into `planCuts` and compare its waste % with the baseline's 49.24 % in `base_case.txt` for the same pieces.
+- Manual one-off check (not committed): load the sample model in `npm run dev`, open **Cutting**, and compare its waste % with the baseline's 49.24 % in `base_case.txt` for the same pieces. Check that placed + not planned = 1,060 and that no Tag is duplicated.
 
 
 ## Open Questions
@@ -232,3 +354,9 @@ Unless a scenario says otherwise, stock is `SVENSKT_TRA_SORTIMENT`.
 ## Implementation Observations
 
 > _Managed by exec-spec post-implementation – append-only. Spec authors: leave this section empty._
+
+- **2026-09-18 (TI01–TI06)** File names: types and the normalise helpers are in `cutting.ts`, and the stock parser and `SVENSKT_TRA_SORTIMENT` are in `stock.ts`. `parseStockCsv` also checks the header row (a bad header fails on line 1).
+- **2026-09-18** When a piece is longer than the candidate opening length, FFD opens a board of the shortest article that fits that piece, so every opening length gives a complete candidate.
+- **2026-09-18** `formatCount` and `formatMetres` moved from `BoardsPanel.tsx` to `src/components/format.ts` (plus `formatMm`), and both panels use them.
+- **2026-09-18** The Cutting panel is mounted (hidden) alongside Boards, so the plan is computed as soon as the board list arrives, even if only Boards was opened. The cost is milliseconds. Shared messages ("No boards found…", "The board list could not be built…") now appear in both tab panels, so the App tests scope those assertions to the visible `tabpanel`.
+- **2026-09-18** New colour tokens `--cut-a`, `--cut-b`, `--cut-text` and `--waste` in `src/index.css`, for light and dark. The Structural Criteria check against the sample file is still manual, because `772_H811_new.ifc` isn't in this checkout.

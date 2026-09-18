@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState, type KeyboardEvent } from 're
 import type { Board } from './domain/boards/board.ts'
 import type { ElementInfo } from './domain/ifc/elementInfo.ts'
 import { BoardsPanel } from './features/board-list/BoardsPanel.tsx'
+import { CuttingPanel } from './features/cutting-plan/CuttingPanel.tsx'
 import { createBrowserIfcApi } from './features/ifc-viewer/createIfcApi.ts'
 import { ElementInfoPanel } from './features/ifc-viewer/ElementInfoPanel.tsx'
 import { IfcLoadError, loadIfcModel, type IfcLoadErrorKind, type LoadedIfcModel } from './features/ifc-viewer/ifcLoader.ts'
@@ -22,11 +23,12 @@ interface ShownModel {
   seq: number
 }
 
-type Tab = 'model' | 'boards'
+type Tab = 'model' | 'boards' | 'cutting'
 
 const TABS: { id: Tab; label: string }[] = [
   { id: 'model', label: '3D model' },
   { id: 'boards', label: 'Boards' },
+  { id: 'cutting', label: 'Cutting' },
 ]
 
 // The board list of one model load (ShownModel.seq), or the failure to build it. Keyed by seq
@@ -52,9 +54,9 @@ function App() {
   // Free the previous model once it has been replaced (or on unmount).
   useEffect(() => () => shown?.loaded.dispose(), [shown])
 
-  // Build the board list once per loaded model, the first time the Boards tab is shown.
+  // Build the board list once per loaded model, the first time Boards or Cutting is shown.
   useEffect(() => {
-    if (tab !== 'boards' || !shown) return
+    if (tab === 'model' || !shown) return
     const { seq } = shown
     if (boardsRequestedFor.current === seq) return
     boardsRequestedFor.current = seq
@@ -71,6 +73,8 @@ function App() {
   }, [tab, shown])
 
   const currentBoards = boardResult && boardResult.seq === shown?.seq ? boardResult : null
+  const boards = currentBoards && 'boards' in currentBoards ? currentBoards.boards : null
+  const boardsError = currentBoards !== null && 'error' in currentBoards
 
   async function handleFile(file: File) {
     const seq = ++loadSeq.current
@@ -178,7 +182,7 @@ function App() {
       )}
 
       <main className="app__main">
-        {/* Hidden rather than unmounted while Boards is shown, so the WebGL view keeps its camera. */}
+        {/* Hidden rather than unmounted while another tab is shown, so the WebGL view keeps its camera. */}
         <div
           className="app__viewer"
           id="panel-model"
@@ -212,11 +216,18 @@ function App() {
               </p>
             )}
             {/* Keyed by model so a new file resets the sort and filter. */}
-            <BoardsPanel
-              key={shown.seq}
-              boards={currentBoards && 'boards' in currentBoards ? currentBoards.boards : null}
-              error={currentBoards !== null && 'error' in currentBoards}
-            />
+            <BoardsPanel key={shown.seq} boards={boards} error={boardsError} />
+          </div>
+        )}
+        {shown && (
+          <div
+            className="app__boards"
+            id="panel-cutting"
+            role="tabpanel"
+            aria-labelledby="tab-cutting"
+            hidden={tab !== 'cutting'}
+          >
+            <CuttingPanel key={shown.seq} boards={boards} error={boardsError} />
           </div>
         )}
       </main>

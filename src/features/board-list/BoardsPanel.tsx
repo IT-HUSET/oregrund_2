@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import { formatCount, formatMetres } from '../../components/format.ts'
 import type { Board } from '../../domain/boards/board.ts'
 import { boardGroupKey, compareProfiles, summarizeBoards, UNPARSED_GROUP } from '../../domain/boards/boardSummary.ts'
 import './BoardsPanel.css'
@@ -210,13 +211,4 @@ function defaultOrder(a: Board, b: Board): number {
 
 function compareText(a: string, b: string): number {
   return a.localeCompare(b, 'en', { numeric: true })
-}
-
-function formatCount(value: number): string {
-  return value.toLocaleString('en-US')
-}
-
-// Summary totals are shown in metres with one decimal, e.g. 2408 mm → "2.4 m".
-function formatMetres(mm: number): string {
-  return `${(mm / 1000).toLocaleString('en-US', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} m`
 }

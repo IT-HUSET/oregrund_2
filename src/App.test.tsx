@@ -281,8 +281,19 @@ describe('App tabs', () => {
     expect(tab('3D model')).toHaveAttribute('tabindex', '-1')
 
     await userEvent.keyboard('{ArrowRight}')
+    expect(tab('Cutting')).toHaveAttribute('aria-selected', 'true')
+    expect(tab('Cutting')).toHaveFocus()
+
+    await userEvent.keyboard('{ArrowRight}')
     expect(tab('3D model')).toHaveAttribute('aria-selected', 'true')
     expect(tab('3D model')).toHaveFocus()
+
+    await userEvent.keyboard('{ArrowLeft}')
+    expect(tab('Cutting')).toHaveAttribute('aria-selected', 'true')
+    await userEvent.keyboard('{Home}')
+    expect(tab('3D model')).toHaveAttribute('aria-selected', 'true')
+    await userEvent.keyboard('{End}')
+    expect(tab('Cutting')).toHaveAttribute('aria-selected', 'true')
   })
 
   // S05: a new file resets the board list (filter and sort)
@@ -352,7 +363,7 @@ describe('App tabs', () => {
     await expectModel('model-a')
 
     await userEvent.click(tab('Boards'))
-    expect(await screen.findByText('The board list could not be built from this model.')).toBeInTheDocument()
+    expect(await within(screen.getByRole('tabpanel')).findByText('The board list could not be built from this model.')).toBeInTheDocument()
     expect(console.error).toHaveBeenCalledWith('Failed to build the board list', failure)
 
     await userEvent.click(tab('3D model'))
@@ -368,6 +379,73 @@ describe('App tabs', () => {
     await choose('a.ifc')
     await expectModel('model-a')
     await userEvent.click(tab('Boards'))
-    expect(await screen.findByText('No boards found in this model.')).toBeInTheDocument()
+    expect(await within(screen.getByRole('tabpanel')).findByText('No boards found in this model.')).toBeInTheDocument()
+  })
+})
+
+const cutOids = () =>
+  screen.getAllByRole('list', { name: /board \d+:/ }).flatMap((bar) =>
+    within(bar)
+      .getAllByRole('listitem')
+      .map((cut) => cut.textContent),
+  )
+
+// 1D cutting: the Cutting tab in the app shell
+describe('App Cutting tab', () => {
+  // S18
+  it('shows three tabs and shares one board lookup between Boards and Cutting', async () => {
+    const model = fakeModel('model-a', beamInfo, boardsA)
+    loadMock.mockResolvedValueOnce(model)
+    render(<App />)
+    await loadAndPick()
+    const viewport = screen.getByTestId('viewport')
+    expect(screen.getAllByRole('tab').map((t) => t.textContent)).toEqual(['3D model', 'Boards', 'Cutting'])
+
+    await userEvent.click(tab('Cutting'))
+    const panel = screen.getByRole('tabpanel', { name: 'Cutting' })
+    expect(await within(panel).findByRole('heading', { name: 'Waste report' })).toBeInTheDocument()
+    expect(cutOids()).toEqual(['589830', '589831', 'waste'])
+    expect(within(panel).getByRole('heading', { name: 'Not planned (1)' })).toBeInTheDocument()
+
+    await userEvent.click(tab('Boards'))
+    expect(await screen.findByRole('table', { name: 'Pieces' })).toBeInTheDocument()
+    await userEvent.click(tab('Cutting'))
+    await userEvent.click(tab('3D model'))
+    expect(screen.getByTestId('viewport')).toBe(viewport)
+    expect(viewport).toHaveAttribute('data-selected', '38')
+    expect(model.getBoards).toHaveBeenCalledTimes(1)
+  })
+
+  // S18: a new file replaces the plan
+  it('shows the new model’s plan when a new file is loaded on the Cutting tab', async () => {
+    loadMock
+      .mockResolvedValueOnce(fakeModel('model-a', beamInfo, boardsA))
+      .mockResolvedValueOnce(fakeModel('model-b', beamInfo, boardsB))
+    render(<App />)
+    await choose('a.ifc')
+    await expectModel('model-a')
+    await userEvent.click(tab('Cutting'))
+    await vi.waitFor(() => expect(cutOids()).toEqual(['589830', '589831', 'waste']))
+
+    await choose('b.ifc')
+    await expectModel('model-b')
+    expect(tab('Cutting')).toHaveAttribute('aria-selected', 'true')
+    await vi.waitFor(() => expect(cutOids()).toEqual(['700001']))
+  })
+
+  // S17 (c): a failed board lookup stays inside the tab
+  it('shows the board-list error in the Cutting tab and keeps the 3D view', async () => {
+    const model = fakeModel('model-a')
+    vi.mocked(model.getBoards).mockRejectedValueOnce(new Error('boom'))
+    loadMock.mockResolvedValueOnce(model)
+    render(<App />)
+    await choose('a.ifc')
+    await expectModel('model-a')
+
+    await userEvent.click(tab('Cutting'))
+    const panel = screen.getByRole('tabpanel', { name: 'Cutting' })
+    expect(await within(panel).findByText('The board list could not be built from this model.')).toBeInTheDocument()
+    await userEvent.click(tab('3D model'))
+    expect(screen.getByTestId('viewport')).toHaveAttribute('data-model', 'model-a')
   })
 })
