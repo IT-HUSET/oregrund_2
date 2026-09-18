@@ -99,12 +99,12 @@ Names can change during implementation. The shape (one join through `oid`, a pri
 
 ## Acceptance Scenarios
 
-Unless noted, the model is a loaded fixture whose boards are the four 1d-cutting S01 pieces `A` 2000, `B` 2000, `C` 1500, `D` 1000 (all `45x95 C24`, element `VÄGG-999`), giving a 3600 board `A`+`C` and a 3000 board `B`+`D`, plus one `45x190 C24` board `E` (not planned) and one `IFCPLATE` (not a board).
+Unless noted, the model is a loaded fixture whose boards are the four 1d-cutting S01 pieces `A` 2000, `B` 2000, `C` 1500, `D` 1000 (all `45x95 C24`, element `VÄGG-999`), giving (with the default 4.5 mm kerf) a 3600 board `A`+`C` and a 3300 board `B`+`D`, plus one `45x190 C24` board `E` (not planned) and one `IFCPLATE` (not a board).
 
 - [x] **S01 [OC04] [TI01] The trace index locates every placed cut**
   - **Given** the plan above
   - **When** `buildTraceIndex` runs
-  - **Then** `byOid('C')` is `placed` with group `45x95 C24`, board 1, article `45x95-C24-3600`, cut index 1, offset 2000, length 1500, waste 100 and siblings `['A']`. `byOid('E')` is `not-planned` with `no-matching-stock`. An unknown OID is `not-a-board`. `boardOids(1)` is `['B', 'D']` and `articleOids('45x95-C24-3600')` is `['A', 'C']`.
+  - **Then** `byOid('C')` is `placed` with group `45x95 C24`, board 1, article `45x95-C24-3600`, cut index 1, offset 2004.5 (2000 + one 4.5 mm kerf), length 1500, waste 100 and siblings `['A']`. `byOid('E')` is `not-planned` with `no-matching-stock`. An unknown OID is `not-a-board`. `boardOids(1)` is `['B', 'D']` and `articleOids('45x95-C24-3600')` is `['A', 'C']`.
 
 - [x] **S02 [OC04] [TI01] Board numbers match the cutting list**
   - **Given** a plan with two groups of three boards each
@@ -118,7 +118,7 @@ Unless noted, the model is a loaded fixture whose boards are the four 1d-cutting
 
 - [x] **S04 [OC02] [TI03,TI05] A whole board and a whole order line are shown in 3D**
   - **Given** the user is on **Kapning**
-  - **When** they activate "Show board in 3D" on the 3000 bar, and separately "Show in 3D" on the order line `45x95 C24 · 3600 mm`
+  - **When** they activate "Show board in 3D" on the 3300 bar, and separately "Show in 3D" on the order line `45x95 C24 · 3600 mm`
   - **Then** the first gives no primary and related = the expressIds of `B` and `D`. The second gives related = `A` and `C`. Both ghost the rest and request framing. The info panel says "2 pieces highlighted" with the board or article label instead of one element's info.
 
 - [ ] **S05 [OC03] [TI02] Traced pieces are visible and the rest is ghosted**
@@ -134,7 +134,7 @@ Unless noted, the model is a loaded fixture whose boards are the four 1d-cutting
 - [x] **S07 [OC04] [TI04,TI05] A picked board shows its cutting context**
   - **Given** the user is on **3D-modell**
   - **When** they click element `C`
-  - **Then** the info panel has a **Cutting** section: `45x95 C24 · 3600 mm · board 1`, `Cut 2 of 2 · offset 2000 mm · 1500 mm`, `Waste on this board: 100 mm`, and `Same board: A` where `A` is a button that selects `A` in 3D (primary `A`, no related). A "Show in cutting list" button is present.
+  - **Then** the info panel has a **Cutting** section: `45x95 C24 · 3600 mm · board 1`, `Cut 2 of 2 · offset 2,005 mm · 1500 mm` (2004.5 shown in whole mm by `formatMm`), `Waste on this board: 100 mm`, and `Same board: A` where `A` is a button that selects `A` in 3D (primary `A`, no related). A "Show in cutting list" button is present.
 
 - [x] **S08 [OC04] [TI04,TI05] Not-planned boards and non-boards**
   - **Given** the user is on **3D-modell**
@@ -210,7 +210,7 @@ Order list
   45x95  C24  hyvlat  3600   1   3.6 m   [Show in 3D]
   …
 45x95 C24 · 2 boards
-  3600  [ A 2000        | C 1500     |▨]  waste 100   [⌖]      ← "Show board in 3D"
+  3600  [ A 2000        ¦ C 1500     ¦▨]  waste 100   [⌖]      ← "Show board in 3D"
         (click / Enter on a segment → "Show OID C in 3D")
 
 3D-modell (after tracing C)
@@ -220,7 +220,7 @@ Order list
 │      ░░░░░ ghosted walls ░░░░░                │ …                            │
 │         ██ C (orange)                         │ Cutting                      │
 │                                               │  45x95 C24 · 3600 mm · board 1│
-│                                               │  Cut 2 of 2 · offset 2000 mm │
+│                                               │  Cut 2 of 2 · offset 2,005 mm│
 │                                               │  · 1500 mm                   │
 │                                               │  Waste on this board: 100 mm │
 │                                               │  Same board: [A]             │

@@ -14,6 +14,7 @@
 - [OC06] After loading an `.ifc` file, the user can open a **Cutting** tab that shows the order list (article × quantity), the waste report totals, and every purchased board drawn to a common scale, with its cuts in saw order and its waste at the end.
 - [OC07] Every drawn cut can be traced to its IFC element: it shows or reveals its OID, role, prefab element and length.
 - [OC08] Unplaced and skipped pieces are listed in the Cutting tab with a readable reason, and a failure to plan never breaks the other tabs.
+- [OC09] The plan accounts for the saw blade: every saw cut removes 4.5 mm (kerf). Pieces on a board never overlap a kerf, a board never holds more than its length allows once kerf is counted, and the waste report shows kerf loss as its own figure inside total waste.
 
 
 ## Required Context
@@ -40,7 +41,7 @@
 | Rendering | Plain DOM (`div`s with percentage widths, drawn to one common scale where 100 % = the longest purchased article), styled in `src/features/cutting-plan/CuttingPanel.css`. No canvas, SVG library or new dependency. |
 | Stock list | `svenskt_tra_virkessortiment.csv` (see Stock Table), bundled in `src/domain/1dcutting/`, with no prices and unlimited quantity per article. It replaces the earlier `svensk_trastandard_matt_tradslag.csv`, which is not used. |
 | Objective | Minimise total waste length, using a deterministic heuristic (First Fit Decreasing plus choice of stock length). Proven optimality isn't required. |
-| Cutting parameters | **None for now.** Kerf = 0, no end trim, and no reusable offcuts: everything left on a board counts as waste. |
+| Cutting parameters (2026-09-18, revised) | **Kerf = 4.5 mm per saw cut** (`DEFAULT_KERF_MM`), passed to `planCuts` as an option so tests can use other values. Still no end trim and no reusable offcuts: everything left on a board counts as waste. This supersedes "kerf = 0". See Kerf Model. |
 
 
 ## Domain Model
@@ -70,9 +71,11 @@ interface PlannedCut { ifcTag: string; lengthMm: number; offsetMm: number }
 
 interface BoardPlan {
   article: StockArticle
-  cuts: PlannedCut[]      // in cutting order, offsets from 0, kerf 0
-  usedMm: number
-  wasteMm: number         // article.lengthMm - usedMm
+  cuts: PlannedCut[]      // in cutting order; offset = previous offset + previous length + kerf
+  usedMm: number          // sum of cut lengths (pieces only, no kerf)
+  kerfMm: number          // material lost to saw cuts on this board (see Kerf Model)
+  offcutMm: number        // what is left after the last saw cut
+  wasteMm: number         // kerfMm + offcutMm = article.lengthMm - usedMm
 }
 
 type UnplacedReason = 'no-matching-stock' | 'too-long' | 'invalid-length'
@@ -86,12 +89,18 @@ interface CuttingPlan {
   unplaced: UnplacedDemand[]
   totals: {
     placedPieces: number; unplacedPieces: number
-    requiredMm: number; purchasedMm: number; wasteMm: number
+    requiredMm: number; purchasedMm: number
+    kerfMm: number; offcutMm: number
+    wasteMm: number       // kerfMm + offcutMm = purchasedMm - requiredMm
     wastePct: number      // wasteMm / purchasedMm * 100, 0 when nothing is purchased
   }
+  kerfPerCutMm: number    // the kerf the plan was made with, for display
 }
 
-function planCuts(demands: readonly CutDemand[], stock: readonly StockArticle[]): CuttingPlan
+interface PlanOptions { kerfMm?: number }   // default DEFAULT_KERF_MM; must be finite and >= 0, else throws
+export const DEFAULT_KERF_MM = 4.5
+
+function planCuts(demands: readonly CutDemand[], stock: readonly StockArticle[], options?: PlanOptions): CuttingPlan
 function parseStockCsv(csv: string): StockArticle[]   // pure; throws on malformed rows
 export const SVENSKT_TRA_SORTIMENT: readonly StockArticle[]  // parseStockCsv(bundled CSV)
 
@@ -113,6 +122,19 @@ The UI looks up a cut's `Board` (role, element, profile label with suffix) by `i
 Names can change during implementation. The shape (Tag on every cut, reasons on unplaced pieces, and totals) can't.
 
 
+## Kerf Model
+
+Let *k* be the kerf (4.5 mm by default), *L* the article length, and *n* ≥ 1 the pieces on a board, with lengths summing to `usedMm`.
+
+- **Fit rule.** Pieces are cut one after another from the board's start, with one saw cut between neighbouring pieces. A board fits when `usedMm + (n − 1)·k ≤ L` (with the 1e-6 mm tolerance). The first piece starts at offset 0, because there is still no end trim.
+- **Offsets.** `offset[0] = 0` and `offset[i] = offset[i−1] + length[i−1] + k`.
+- **Last cut.** Let *r* = `L − usedMm − (n − 1)·k` be what is left after the last piece. When *r* > 0, one more saw cut frees the last piece from the offcut, and it removes `min(k, r)`. So a piece that ends 2 mm short of the board end loses those 2 mm to kerf and leaves no offcut.
+- **Per board.** `kerfMm = (n − 1)·k + min(k, r)` and `offcutMm = r − min(k, r)`, so `usedMm + kerfMm + offcutMm = L`.
+- **Single pieces.** A piece as long as the article (for example 5400 on 5400) needs no cut and has kerf 0. So the `too-long` limit stays "longer than the longest article". Kerf never makes a single piece unplaceable.
+- **Downsizing and candidate choice** use the same fit rule. "Least waste" still means least `wasteMm`, which now includes kerf. Because *r* depends on *L*, a board's kerf can change when it is downsized, and it is recomputed from the final article.
+- With `kerfMm: 0` the plan is exactly the one the kerf-free algorithm would produce. The domain tests that don't cover kerf pass `{ kerfMm: 0 }`, so their numbers stay simple.
+
+
 ## Stock Table
 
 `docs/specs/1d-cutting/svenskt_tra_virkessortiment.csv` is UTF-8 and semicolon-separated, with the columns `typ;utförande;tjocklek_mm;bredd_mm;hållfasthetsklass;sorteringsklass;längd_mm;källa`. There are three kinds of rows:
@@ -132,13 +154,14 @@ Unless a scenario says otherwise, stock is `SVENSKT_TRA_SORTIMENT`.
 
 - [ ] **S01 [OC01,OC02] [TI02] Pieces share boards and the least-waste plan is picked**
   - **Given** four 45x95 C24 demands: `A` 2000, `B` 2000, `C` 1500 and `D` 1000 mm
-  - **When** `planCuts` runs
-  - **Then** it returns two boards: a 3600 board cutting `A` 2000 then `C` 1500 (waste 100), and a 3000 board cutting `B` 2000 then `D` 1000 (waste 0). Totals: required 6500, purchased 6600, waste 100, wastePct ≈ 1.52. Order lines are 1 × 45x95-C24-3600 and 1 × 45x95-C24-3000. (The one-board-per-piece baseline would buy 4 × 3000 = 12000 mm.)
+  - **When** `planCuts` runs with the default kerf (4.5 mm)
+  - **Then** it returns two boards: a 3600 board cutting `A` 2000 then `C` 1500 (kerf 9, offcut 91, waste 100), and a 3300 board cutting `B` 2000 then `D` 1000 (kerf 9, offcut 291, waste 300). `B` + `D` no longer fit a 3000 board, because 2000 + 4.5 + 1000 = 3004.5. Totals: required 6500, purchased 6900, kerf 18, offcut 382, waste 400, wastePct ≈ 5.80. Order lines are 1 × 45x95-C24-3600 and 1 × 45x95-C24-3300. (The one-board-per-piece baseline would buy 4 × 3000 = 12000 mm.)
+  - **And** with `{ kerfMm: 0 }` the same demands give the kerf-free plan: 3600 {`A`, `C`} (waste 100) and 3000 {`B`, `D`} (waste 0), purchased 6600.
 
 - [ ] **S02 [OC01] [TI02] Cut offsets describe the saw sequence**
   - **Given** the S01 plan
   - **When** the 3600 board's cuts are read
-  - **Then** they are `{A, 2000, offset 0}` and `{C, 1500, offset 2000}`. On every board, each offset equals the sum of the preceding cut lengths.
+  - **Then** they are `{A, 2000, offset 0}` and `{C, 1500, offset 2004.5}`. On every board, each offset equals the sum of the preceding cut lengths plus one kerf per preceding cut.
 
 - [ ] **S03 [OC03] [TI02] Non-standard dimensions are unplaced, not guessed**
   - **Given** a 45x190 C24 demand (a cross-section that is not in the stock table)
@@ -173,7 +196,7 @@ Unless a scenario says otherwise, stock is `SVENSKT_TRA_SORTIMENT`.
 - [ ] **S09 [OC01,OC02,OC03] [TI02] Invariants hold on a large random input**
   - **Given** 750 random demands with a fixed seed (mixed standard profiles, some non-standard, some too long, lengths 200–5400 mm)
   - **When** `planCuts` runs
-  - **Then** every input `ifcTag` appears exactly once, either in a board or in `unplaced`. On every board, `usedMm ≤ article.lengthMm`, and the board's profile and grade equal those of each of its cuts. No board could be swapped for a shorter stock length of the same profile and grade that still fits `usedMm`. Totals equal the sums over boards. The call completes in under 1 s in Vitest.
+  - **Then** every input `ifcTag` appears exactly once, either in a board or in `unplaced`. On every board, `usedMm + (n − 1)·kerf ≤ article.lengthMm`, `usedMm + kerfMm + offcutMm = article.lengthMm`, consecutive cuts are exactly one kerf apart (no overlap), and the board's profile and grade equal those of each of its cuts. No board could be swapped for a shorter stock length of the same profile and grade that still fits under the Kerf Model's fit rule. Totals equal the sums over boards, and total waste = total kerf + total offcut. The test runs with the default kerf. The call completes in under 1 s in Vitest.
 
 - [ ] **S10 [OC04] [TI01] The bundled stock table is complete and well-formed**
   - **Given** `SVENSKT_TRA_SORTIMENT`
@@ -199,10 +222,10 @@ Unless a scenario says otherwise, stock is `SVENSKT_TRA_SORTIMENT`.
   - **Given** a loaded model whose boards are the four S01 pieces (`A` 2000, `B` 2000, `C` 1500, `D` 1000, all `45x95 C24`)
   - **When** the user selects the **Cutting** tab
   - **Then**:
-    - The totals read: 4 pieces placed, 2 boards to buy, 6.6 m purchased, 6.5 m required, 0.1 m waste (1.5 %).
-    - The order list has two rows, `45x95 C24 · 3600 mm · 1` and `45x95 C24 · 3000 mm · 1`, each with its finish (`hyvlat`).
-    - Under the heading `45x95 C24` there are two board bars. The 3600 bar shows segment `A` (2000) then `C` (1500) then a waste segment of 100 mm. The 3000 bar shows `B` then `D` and no waste segment.
-    - Segment widths are proportional: on the common scale (100 % = 3600 mm), `A` is 55.6 %, and the whole 3000 bar is 83.3 %.
+    - The totals read: 4 pieces placed, 2 boards to buy, 6.9 m purchased, 6.5 m required, 0.4 m waste (5.8 %), incl. 18 mm saw kerf (4.5 mm per cut).
+    - The order list has two rows, `45x95 C24 · 3600 mm · 1` and `45x95 C24 · 3300 mm · 1`, each with its finish (`hyvlat`).
+    - Under the heading `45x95 C24` there are two board bars. The 3600 bar shows segment `A` (2000), a kerf gap, `C` (1500), a kerf gap and an offcut segment of 91 mm, and its right-hand label reads `waste 100`. The 3300 bar shows `B`, a gap, `D`, a gap and an offcut of 291 mm, labelled `waste 300`.
+    - Segment widths are proportional: on the common scale (100 % = 3600 mm), `A` is 55.6 %, a kerf gap is 0.125 %, and the whole 3300 bar is 91.7 %.
 
 - [ ] **S15 [OC07] [TI05] Each cut is traceable to its IFC element**
   - **Given** the S14 plan, and board `A` has role `Stud` and element `VÄGG-999`
@@ -218,6 +241,16 @@ Unless a scenario says otherwise, stock is `SVENSKT_TRA_SORTIMENT`.
   - **Given** (a) the board lookup is still pending, (b) the model has no boards, (c) the board lookup rejects, (d) `planCuts` throws (e.g. duplicate OIDs)
   - **When** the user opens **Cutting**
   - **Then** it shows (a) "Planning cuts…", (b) "No boards found in this model.", (c) "The board list could not be built from this model.", (d) "The cutting plan could not be computed for this model." and the error goes to `console.error`. In every case the **3D model** and **Boards** tabs keep working.
+
+- [ ] **S19 [OC09] [TI07] Kerf edge cases**
+  - **Given** 45x95 C24 stock, default kerf, and these separate calls: (a) one 5400 piece, (b) one 2998 piece, (c) two 2700 pieces, (d) two 1497.75 pieces
+  - **When** `planCuts` runs on each
+  - **Then** (a) is one 5400 board with kerf 0 and offcut 0, not `too-long`. (b) is one 3000 board with kerf 2 and offcut 0. (c) is two boards, because 2700 + 4.5 + 2700 > 5400. (d) is one 3000 board with the two pieces at offsets 0 and 1502.25, kerf 4.5 and offcut 0, so an exact fit with kerf is accepted within the tolerance.
+
+- [ ] **S20 [OC09] [TI07] The kerf option is validated**
+  - **Given** `planCuts` called with `kerfMm` of `-1`, `NaN` and `Infinity`
+  - **When** it runs
+  - **Then** each call throws an error that names the kerf value. `kerfMm: 0` is allowed and gives a plan in which every board has `kerfMm` 0 and `offcutMm` = `wasteMm`.
 
 - [ ] **S18 [OC06] [TI06] The Cutting tab fits the existing shell**
   - **Given** a model is loaded
@@ -246,10 +279,10 @@ Unless a scenario says otherwise, stock is `SVENSKT_TRA_SORTIMENT`.
 ### What We're NOT Doing
 - A `components.xml` (`FRAMEPIECE`) adapter. Board names are already parsed by `src/domain/boards/`, and this spec doesn't parse them again.
 - Clicking a cut segment to select the element in 3D. That's still deferred to the traceability spec (the `Board` keeps its `expressId`, so it stays possible).
-- Editing the plan in the UI: choosing stock lengths, kerf, or moving cuts between boards.
+- Editing the plan in the UI: choosing stock lengths, changing the kerf, or moving cuts between boards. The kerf is a code-level option only.
 - Export (CSV/PDF) and printing of the cutting list.
 - Moving `planCuts` to a Web Worker. It runs synchronously in a `useMemo`, which S09's < 1 s budget allows.
-- Kerf, end trim, minimum usable offcut, remnant reuse, and finger-jointing or splicing of pieces that are too long.
+- End trim, minimum usable offcut, remnant reuse, and finger-jointing or splicing of pieces that are too long. Kerf is in scope (see Kerf Model).
 - Prices, cost minimisation, supplier catalogues and stock quantities (stock is unlimited).
 - Sheet materials (`SHEET`, 2D cutting) and non-timber materials.
 - Exact or ILP solvers.
@@ -258,7 +291,7 @@ Unless a scenario says otherwise, stock is `SVENSKT_TRA_SORTIMENT`.
 
 ## Architecture Decision
 
-**Approach**: Group demands by (profile, grade) and match each group against the stock articles with the same profile and grade. For each group, and for each available stock length *L*, run **First Fit Decreasing** (pieces sorted by length descending, ties broken by `ifcTag` ascending; a new board of length *L* is opened when no open board fits). Then **downsize** each board to the shortest article that still fits its `usedMm`. Keep the candidate with the least waste, breaking ties by fewest boards and then by smallest *L*.
+**Approach**: Group demands by (profile, grade) and match each group against the stock articles with the same profile and grade. For each group, and for each available stock length *L*, run **First Fit Decreasing** (pieces sorted by length descending, ties broken by `ifcTag` ascending; a new board of length *L* is opened when no open board fits). Then **downsize** each board to the shortest article that still fits its pieces plus the kerf between them (Kerf Model). Keep the candidate with the least waste, breaking ties by fewest boards and then by smallest *L*.
 **Why this over alternatives**: This is deterministic, needs no dependencies, and takes milliseconds for about 750 pieces (9 lengths × FFD per group). Trying each opening length and then downsizing fixes FFD's main weakness with mixed stock lengths. An exact column-generation/ILP solver would need a WASM solver dependency, which the demo doesn't justify. The `planCuts` signature lets a better solver replace this one later.
 
 **UI approach**: `App` fetches the board list once per model when **Boards** or **Cutting** is first shown (the existing `boardsRequestedFor` guard, widened to both tabs), and passes the same `Board[] | null` and error flag to both panels. `CuttingPanel` computes `boardsToDemands` → `planCuts(demands, SVENSKT_TRA_SORTIMENT)` in one `useMemo` and catches a thrown error into the S17 (d) state. The panel is keyed by the model's `seq`, like `BoardsPanel`.
@@ -274,6 +307,7 @@ The numbers below are illustrative, not from the sample.
 ───────────────────────────────────────────────────────────────────────
 Waste report   612 pieces placed · 214 boards to buy
                1,012.4 m purchased · 948.1 m required · 64.3 m waste (6.4 %)
+               incl. 3.1 m saw kerf (4.5 mm per cut)
 
 Order list
   Profile     Grade  Finish   Length (mm)  Qty   Total (m)
@@ -282,8 +316,8 @@ Order list
   …
 
 45x95 C24 · 16 boards                       scale: |─── 1 m ───|
-  3600  [ A 2000          | C 1500      |▨]  waste 100
-  3000  [ B 2000          | D 1000   ]
+  3600  [ A 2000          ¦ C 1500      ¦▨]  waste 100
+  3300  [ B 2000          ¦ D 1000   ¦▨▨▨ ]  waste 300
   …
 
 Not planned (57)                                         [ show ▾ ]
@@ -296,11 +330,14 @@ Not planned (57)                                         [ show ▾ ]
 - Cut segments alternate between two fill tones so that neighbouring cuts are distinct. The waste segment is hatched and labelled "waste". Colours come from CSS tokens in `src/index.css`, so they work in light and dark themes.
 - A segment's label is its OID, and the label is hidden (the accessible name stays) when the segment is narrower than the text.
 - The "Not planned" list starts collapsed when it has more than 20 rows.
+- `¦` is a kerf gap: an `aria-hidden` element whose width is the kerf on the common scale (about 0.1 %), drawn at a minimum of 1 px in a darker tone, so every saw cut is visible even though 4.5 mm is too thin to show to scale. The final gap (last cut) is drawn only when the board has one. The waste label shows the board's `wasteMm` (kerf + offcut). The offcut segment's tooltip splits it into `offcut 91 mm · kerf 9 mm`. A board without offcut shows no hatched segment.
+- Totals show kerf with the whole-mm formatter under 1 m (`18 mm`), and in metres with one decimal from 1 m up (`3.1 m`).
 
 
 ## Constraints & Gotchas
 
-- **Constraint**: Lengths from IFC/XML may be non-integer (e.g. 2399.5). Don't round. Compare "fits" with a tolerance of 1e-6 mm so that float sums don't reject exact fits.
+- **Constraint**: Lengths from IFC/XML may be non-integer (e.g. 2399.5), and offsets with kerf are too (2004.5). Don't round in the domain. Compare "fits" with a tolerance of 1e-6 mm so that float sums don't reject exact fits. Offsets display with `formatMm` (whole mm), so the saw list may be up to 0.5 mm off the domain value.
+- **Gotcha**: Kerf moves pieces off their kerf-free boards. Two pieces that sum to exactly a stock length no longer share it, so waste % goes up compared with the kerf-free plan. This is expected and more realistic. Don't "fix" it by ignoring kerf on the last piece.
 - **Constraint**: Output order is part of the contract (S08). Boards are sorted by thickness, width and grade (ascending), then board length (descending), then the first cut's `ifcTag`. Unplaced demands are sorted by `ifcTag`. Order lines follow board order.
 - **Assumption**: The trade lengths (3000–5400 mm in 300 mm steps) come from Kravbild, not from Svenskt Trä. Every cross-section is assumed to be available in every strength class and length. See Open Questions.
 - **Constraint**: Grade matching is exact after alias normalisation (T0→C14, T1→C18, T2→C24, T3→C30). A higher class is **not** used in place of a lower one, e.g. C30 stock for a C24 demand. That rule is the same as in `base_case.txt`.
@@ -334,6 +371,9 @@ Not planned (57)                                         [ show ▾ ]
 - [x] **TI06** `App.tsx` adds the **Cutting** tab and panel (`id="panel-cutting"`, kept mounted and `hidden` like Boards). It requests the board list the first time either Boards or Cutting is shown, and passes the same result to both panels.
   - **Verify**: `App.test.tsx` covers S18: three tabs in order, keyboard navigation wraps over three, `getBoards` is called once when opening Cutting then Boards then Cutting, and a second file shows the second model's plan. The existing tab tests still pass.
 
+- [ ] **TI07** Kerf: add `DEFAULT_KERF_MM` and `PlanOptions` to `cutting.ts`, apply the Kerf Model in `planCuts` (fit rule in FFD and downsizing, offsets, per-board `kerfMm`/`offcutMm`, totals, `kerfPerCutMm`, option validation), and draw kerf gaps and the kerf total in `CuttingPanel`. Update the `cut-traceability` numbers that depend on S01 (offset of `C`, the `B`/`D` board's article and waste).
+  - **Verify**: S01, S02, S09, S14, S19 and S20 pass. The other `planCuts` tests pass unchanged with `{ kerfMm: 0 }`. The waste report total equals the sum of the bars' waste labels.
+
 ### Testing Strategy
 - Pure Vitest unit tests in the node environment, next to the code (`planCuts.test.ts`, `stock.test.ts`, `boardDemands.test.ts`).
 - Small stock lists are written inline in tests, so that scenarios don't depend on the bundled table, except for S01, S03, S10 and S11.
@@ -348,7 +388,8 @@ Not planned (57)                                         [ show ▾ ]
 1. **Trade lengths.** Svenskt Trä publishes no lengths, so 3000–5400 mm in 300 mm steps is taken from Kravbild. Should the supplier's actual lengths (for example 2400–6000 mm) replace it? That only means editing the `längd` rows.
 2. **Availability per class.** In practice C18/C30 are rarely stocked and C14 mostly in small dimensions (Svenskt Trä). Should the table restrict classes per cross-section instead of using the full cross product?
 3. **Non-standard profiles** such as 45×182 are now stock rows of their own (bought as special orders). Should a later spec rip them from a wider standard profile (45×195) instead?
-4. **Baseline function.** Should the domain also provide the one-board-per-piece baseline, so that the waste report can show % saving (Kravbild §5)? It's cheap to add, but it isn't in this spec.
+4. **Kerf value.** 4.5 mm fits a typical thin-kerf circular or crosscut saw blade. Should it depend on the machine or profile (a wider blade for 90×… or sawn timber), or become a UI setting later?
+5. **Baseline function.** Should the domain also provide the one-board-per-piece baseline, so that the waste report can show % saving (Kravbild §5)? It's cheap to add, but it isn't in this spec.
 
 
 ## Implementation Observations
