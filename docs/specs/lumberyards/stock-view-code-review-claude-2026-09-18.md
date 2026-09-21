@@ -95,3 +95,17 @@ The sub-agent attacked:
 
 CONVERGED: no. F1 is a new MEDIUM code-defect.
 Auto-Remediation: PENDING. F1, F3, F7 and F8 will be applied in the quick-implement loop.
+
+## Remediation (applied in the quick-implement loop)
+- **F1 fixed:** new App test "does not build the board list when only Brädgårdar is opened". It fails when the old effect condition is restored.
+- **F3 fixed:** the shared-yard test now checks that the trace is cleared and that Kapning's order lengths change (Standard `3,600, 3,300` → Har allt `6,600`). It also checks the other direction. It fails when the picker is wired to `setLumberyardId`.
+- **F7 fixed:**
+  - The rowgroup `<th>` now holds only "profile grade", and the totals are in a sibling `<td>`.
+  - The section's `aria-labelledby` was removed.
+- **F8 fixed:** the panel is rendered only while its tab is open.
+- **After the fixes:**
+  - `test:run` has 19 files and 188 tests, all passing.
+  - lint, typecheck and build exit 0.
+  - Playwright screenshots at 1280 and 390 px show no horizontal scroll and no console errors.
+
+CONVERGED: yes. No Fix-routed code-defect is left. Auto-Remediation: CLEAR.
